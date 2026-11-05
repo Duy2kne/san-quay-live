@@ -15,6 +15,13 @@ import { playLevelUpFanfare } from './sfx.js';
 
 let socket = null;
 
+// Dòng "Đang phát" thay cho khung video YouTube
+function setNowPlaying(music) {
+  const el = document.getElementById('np-title');
+  if (!el) return;
+  el.textContent = music?.currentTrack?.title || 'Nhạc sàn tự động';
+}
+
 export function initNetwork({ avatarManager, scene }) {
   socket = io(window.location.origin, {
     transports: ['websocket', 'polling'],
@@ -49,6 +56,7 @@ export function initNetwork({ avatarManager, scene }) {
 
     if (data.music) {
       syncWithTrack(data.music);
+      setNowPlaying(data.music);
     }
 
     if (data.recentEvents && Array.isArray(data.recentEvents)) {
@@ -136,8 +144,12 @@ export function initNetwork({ avatarManager, scene }) {
     }
   });
 
-  socket.on('avatar_chat_effect', ({ userId, effectKey, emoji, dance, comment }) => {
+  // Server gửi { userId, effect, label }; tên hiệu ứng cũng là tên điệu nhảy của nhân vật
+  const CHAT_EFFECT_EMOJI = { thumbs_up: '👍', heart_dance: '💖', clap_fire: '🔥', party_jump: '🎉', sparkle_pose: '✨', laugh_shake: '😂', wave_hello: '👋', headbang: '🤘' };
+  socket.on('avatar_chat_effect', ({ userId, effect, effectKey, emoji, dance, comment }) => {
     const av = avatarManager.getAvatar(userId);
+    dance = dance || effect || effectKey;
+    emoji = emoji || CHAT_EFFECT_EMOJI[dance] || '✨';
     if (av) {
       if (dance) av.setDance(dance, 4);
       if (comment) av.showChat(comment);
@@ -178,6 +190,18 @@ export function initNetwork({ avatarManager, scene }) {
 
   socket.on('music_sync', (musicState) => {
     syncWithTrack(musicState);
+    setNowPlaying(musicState);
+  });
+
+  socket.on('song_changed_by_top', ({ userId, nickname, label, title }) => {
+    addEventFeedItem({ type: 'song_change', nickname, title });
+    const av = avatarManager.getAvatar(userId);
+    if (av) av.setDance('hands_up', 4);
+  });
+
+  socket.on('song_change_denied', ({ userId, reason }) => {
+    const av = avatarManager.getAvatar(userId);
+    if (av) av.showChat(reason);
   });
 
   socket.on('broadcast_announcement', ({ message }) => {
