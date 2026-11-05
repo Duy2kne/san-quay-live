@@ -45,14 +45,8 @@ export function triggerGiftEffect(effectItem, avatarManager) {
     avatar.setDance(effect.dance, effect.duration / 1000);
   }
 
-  // Stage solo logic
-  if (effect.isStageShow && avatar) {
-    avatar.isStage = true;
-    avatar.group.position.set(0, 1.8, -10); // on stage
-    setTimeout(() => {
-      avatar.isStage = false;
-    }, effect.duration || 8000);
-  }
+  // Hiệu ứng luôn diễn ra ngay tại vị trí người tặng quà trên sàn nhảy,
+  // không kéo nhân vật lên sân khấu DJ nữa để camera/ánh sáng tập trung vào dàn vũ công.
 
   // Drone camera focus
   if (effect.extra === 'drone_cam' || effect.isVipShow || effect.isSuperShow) {
@@ -73,7 +67,7 @@ export function triggerGiftEffect(effectItem, avatarManager) {
       break;
 
     case 'stage_solo':
-      spawnConfetti(new THREE.Vector3(0, 2, -10), 120);
+      spawnConfetti(targetPos, 120);
       spawnSpotlightBeam(targetPos);
       break;
 
@@ -384,7 +378,7 @@ function spawnSpotlightBeam(pos) {
     sceneRef.remove(old.targetObj);
   }
 
-  const spot = new THREE.SpotLight(0xffd700, 18, 30, Math.PI / 7, 0.3);
+  const spot = new THREE.SpotLight(0xffd700, 10, 30, Math.PI / 7, 0.3);
   spot.position.set(pos.x, 18, pos.z);
   const targetObj = new THREE.Object3D();
   targetObj.position.copy(pos);
