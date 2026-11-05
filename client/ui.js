@@ -19,9 +19,12 @@ export function initUI(onScopeChange) {
     unlockBtn.addEventListener('click', doUnlock);
   }
   // Mỗi người xem mở trang trên trình duyệt riêng đều bị chặn autoplay có tiếng
-  // cho đến khi họ tương tác; bắt luôn cú bấm/chạm đầu tiên ở bất kỳ đâu trên trang
-  // để không phải ai cũng tự tìm ra nút loa nhỏ mới nghe được nhạc.
-  window.addEventListener('pointerdown', doUnlock, { once: true });
+  // cho đến khi họ tương tác; bắt luôn cú bấm/chạm đầu tiên ở bất kỳ đâu trên trang.
+  // Lưu ý: phải dùng đúng các sự kiện trình duyệt công nhận là "cử chỉ người dùng"
+  // (click/touchend/keydown) — 'pointerdown' KHÔNG nằm trong danh sách này nên nhiều
+  // trình duyệt (đặc biệt Safari/iOS) vẫn chặn autoplay có tiếng dù đã bắt sự kiện.
+  window.addEventListener('click', doUnlock, { once: true });
+  window.addEventListener('touchend', doUnlock, { once: true });
   window.addEventListener('keydown', doUnlock, { once: true });
 
   // Top tab switching
