@@ -802,11 +802,11 @@ export function dancePose(name, t) {
     case 'clap':
     case 'clap_fire': {
       const cl = Math.sin(t * 2.5);
-      p.lu = [-0.95, 0, 0.32 + cl * 0.16];
-      p.ru = [-0.95, 0, -0.32 - cl * 0.16];
+      p.lu = [-0.95, 0, 0.42 + cl * 0.24];
+      p.ru = [-0.95, 0, -0.42 - cl * 0.24];
       p.ll = [-1.05, 0];
       p.rl = [-1.05, 0];
-      p.bob = beat * 0.04;
+      p.bob = beat * 0.07;
       break;
     }
     case 'hip_shake':
@@ -815,13 +815,13 @@ export function dancePose(name, t) {
       p.ru = [0, 0, 0.55];
       p.ll = [-0.2, -1.6];
       p.rl = [-0.2, -1.6];
-      p.sway = s * 0.12;
-      p.twist = s * 0.2;
-      p.lt = s * 0.15;
-      p.rt = -s * 0.15;
-      p.lk = Math.max(0, s) * 0.3;
-      p.rk = Math.max(0, -s) * 0.3;
-      p.bob = beat * 0.03;
+      p.sway = s * 0.2;
+      p.twist = s * 0.32;
+      p.lt = s * 0.22;
+      p.rt = -s * 0.22;
+      p.lk = Math.max(0, s) * 0.4;
+      p.rk = Math.max(0, -s) * 0.4;
+      p.bob = beat * 0.05;
       break;
     case 'spin':
       p.lu = [0, 0, -1.3];
@@ -854,17 +854,17 @@ export function dancePose(name, t) {
     case 'stage_solo':
     case 'party_jump': {
       const pump = Math.sin(t);
-      p.lu = [-0.2, 0, -2.5 - pump * 0.25];
-      p.ru = [-0.2, 0, 2.5 + pump * 0.25];
+      p.lu = [-0.2, 0, -2.5 - pump * 0.35];
+      p.ru = [-0.2, 0, 2.5 + pump * 0.35];
       p.ll = [-0.3, 0];
       p.rl = [-0.3, 0];
-      const jump = name === 'party_jump' ? Math.max(0, Math.sin(t)) * 0.32 : Math.max(0, pump) * 0.08;
+      const jump = name === 'party_jump' ? Math.max(0, Math.sin(t)) * 0.42 : Math.max(0, pump) * 0.14;
       p.bob = jump;
       p.lt = -jump * 1.6;
       p.rt = -jump * 1.6;
       p.lk = jump * 3;
       p.rk = jump * 3;
-      p.lean = -0.06;
+      p.lean = -0.08;
       break;
     }
     case 'shuffle': {
@@ -948,17 +948,17 @@ export function dancePose(name, t) {
     case 'bounce':
     default: {
       // nhún theo phách, tay đánh nhịp
-      p.bob = beat * 0.06;
-      p.lk = beat * 0.25;
-      p.rk = beat * 0.25;
-      p.lt = -beat * 0.12;
-      p.rt = -beat * 0.12;
-      p.lu = [-0.35 + s * 0.25, 0, -0.25];
-      p.ru = [-0.35 - s * 0.25, 0, 0.25];
+      p.bob = beat * 0.11;
+      p.lk = beat * 0.4;
+      p.rk = beat * 0.4;
+      p.lt = -beat * 0.2;
+      p.rt = -beat * 0.2;
+      p.lu = [-0.4 + s * 0.4, 0, -0.3];
+      p.ru = [-0.4 - s * 0.4, 0, 0.3];
       p.ll = [-1.2, 0];
       p.rl = [-1.2, 0];
-      p.twist = s * 0.12;
-      p.hx = beat * 0.08;
+      p.twist = s * 0.18;
+      p.hx = beat * 0.12;
     }
   }
   return p;
