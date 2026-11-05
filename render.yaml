@@ -18,7 +18,9 @@ services:
       - key: DATA_DIR
         value: ./data
       - key: MAX_AVATARS
-        value: 80
+        value: 150
+      - key: TIKTOK_SIGN_API_KEY
+        sync: false
       - key: AVATAR_IDLE_MINUTES
         value: 10
       - key: LEVEL_FACTOR
