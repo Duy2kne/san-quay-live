@@ -315,13 +315,14 @@ function flushBatches() {
   }
 }
 
-export async function connectToTikTokLive(rawChannel, clientOptions = {}) {
+export async function connectToTikTokLive(rawChannel, clientOptions = {}, isAutoRetry = false) {
   const uniqueId = parseTikTokUsername(rawChannel);
   if (!uniqueId) {
     throw new Error('Tên kênh TikTok không hợp lệ! Vui lòng nhập định dạng @tenkenh hoặc link live.');
   }
 
   isExplicitlyStopped = false;
+  if (!isAutoRetry) reconnectAttempts = 0; // admin bấm kết nối: tính lại từ đầu
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
@@ -422,7 +423,7 @@ export async function connectToTikTokLive(rawChannel, clientOptions = {}) {
         channel: `@${uniqueId}`,
       });
     }
-    scheduleReconnect(uniqueId);
+    scheduleReconnect(uniqueId, classifyError(err));
     throw new Error(errorMsg);
   }
 }
@@ -438,7 +439,9 @@ function formatTikTokError(err) {
     return 'Không tìm thấy phòng live của kênh này. Kiểm tra lại tên kênh (phần sau @ trong link) và kênh phải đang live.';
   }
   if (/RateLimit/i.test(name) || /rate limit|429|too many/i.test(msg)) {
-    return 'Máy chủ ký kết nối (Euler Stream) đang giới hạn lượt dùng. Thêm TIKTOK_SIGN_API_KEY (đăng ký miễn phí ở eulerstream.com) hoặc thử lại sau ít phút.';
+    return env('TIKTOK_SIGN_API_KEY')
+      ? 'Khoá TIKTOK_SIGN_API_KEY đã hết lượt ký trong hôm nay / tháng này (gói Euler Stream). Đợi gói làm mới hoặc nâng gói ở eulerstream.com.'
+      : 'Máy chủ ký kết nối (Euler Stream) đã hết lượt miễn phí cho IP của server. Cần đặt TIKTOK_SIGN_API_KEY (đăng ký miễn phí ở eulerstream.com) trong mục Environment trên Render.';
   }
   if (/SignAPI|Premium/i.test(name) || /sign server|signature/i.test(msg)) {
     return `Lỗi máy chủ ký kết nối (Euler Stream). Thêm TIKTOK_SIGN_API_KEY hợp lệ rồi thử lại. Chi tiết: ${msg.slice(0, 160)}`;
@@ -449,16 +452,37 @@ function formatTikTokError(err) {
   return `Lỗi kết nối TikTok Live: ${msg.slice(0, 200)}`;
 }
 
-function scheduleReconnect(uniqueId) {
+// Phân loại lỗi để quyết định có tự thử lại không (mỗi lần thử tốn 1 lượt ký của Euler Stream)
+function classifyError(err) {
+  const name = String(err?.name || err?.constructor?.name || '');
+  const msg = String(err?.message || err);
+  if (/InvalidUniqueId/i.test(name) || /user not found|cannot find/i.test(msg)) return 'not_found';
+  if (/UserOffline/i.test(name) || /isn't online|not live|offline|LIVE has ended/i.test(msg)) return 'offline';
+  if (/RateLimit|SignAPI|Premium/i.test(name) || /rate limit|429|too many|sign server|signature/i.test(msg)) return 'sign';
+  return 'network';
+}
+
+function scheduleReconnect(uniqueId, kind = 'network') {
   if (isExplicitlyStopped || reconnectTimer) return;
-  const delays = [5000, 10000, 30000, 60000];
-  const delay = delays[Math.min(reconnectAttempts, delays.length - 1)];
+  // not_found: không thử lại. offline: hỏi lại mỗi phút (không tốn lượt ký) tối đa 30 lần.
+  // sign (hết lượt / lỗi khoá): đợi 5 phút, tối đa 3 lần. Mạng: 10s, 30s, 60s… tối đa 10 lần.
+  const plan = {
+    not_found: { delays: [], max: 0 },
+    offline: { delays: [60000], max: 30 },
+    sign: { delays: [300000], max: 3 },
+    network: { delays: [10000, 30000, 60000], max: 10 },
+  }[kind] || { delays: [60000], max: 5 };
+  if (reconnectAttempts >= plan.max || !plan.delays.length) {
+    console.warn(`[tiktok] Dừng tự kết nối lại tới @${uniqueId} (${kind}, đã thử ${reconnectAttempts} lần). Admin bấm "Kết nối Live" để thử lại.`);
+    return;
+  }
+  const delay = plan.delays[Math.min(reconnectAttempts, plan.delays.length - 1)];
   reconnectAttempts++;
 
   console.log(`[tiktok] Sẽ tự kết nối lại tới @${uniqueId} sau ${delay / 1000}s (lần ${reconnectAttempts})...`);
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
-    connectToTikTokLive(uniqueId).catch(err => {
+    connectToTikTokLive(uniqueId, {}, true).catch(err => {
       console.error('[tiktok] Reconnect failed:', err.message);
     });
   }, delay);
