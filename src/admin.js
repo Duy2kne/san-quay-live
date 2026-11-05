@@ -76,7 +76,8 @@ export async function handleAdminAction(action, payload, io, clientIp) {
     case 'connect_live': {
       const channel = payload?.channel;
       const res = await connectToTikTokLive(channel);
-      return { success: true, result: res };
+      // Không trả cả roomInfo (rất lớn) về trình duyệt
+      return { success: true, result: { uniqueId: res.uniqueId, roomId: res.state?.roomId || '' } };
     }
 
     case 'disconnect_live': {
