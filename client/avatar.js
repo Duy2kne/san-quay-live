@@ -570,7 +570,7 @@ export class AvatarInstance {
 
   applyDanceKeyframes(delta, timeSec) {
     if (!this.rig) return;
-    const t = timeSec * 4.2 + this.dancePhase;
+    const t = timeSec * 5.6 + this.dancePhase;
     let move = this.currentDance || 'bounce';
     if (this.landTimer > 0) {
       this.landTimer -= delta;
@@ -579,15 +579,15 @@ export class AvatarInstance {
     const pose = dancePose(move, t);
     // nhún theo phách nhạc
     this.beatPulse = Math.max(0, (this.beatPulse || 0) - delta * 5);
-    pose.bob += this.beatPulse * 0.045;
-    pose.lk += this.beatPulse * 0.12;
-    pose.rk += this.beatPulse * 0.12;
+    pose.bob += this.beatPulse * 0.09;
+    pose.lk += this.beatPulse * 0.22;
+    pose.rk += this.beatPulse * 0.22;
 
     if (move === 'spin') this.rig.spin += delta * 7;
     else this.rig.spin *= Math.max(0, 1 - delta * 6);
     if (move === 'moonwalk' && !this.isStage && !this.isPodium) this.group.position.z += Math.sin(t) * delta * 0.4;
 
-    applyPose(this.rig, pose, delta, move === 'robot' ? 22 : 12);
+    applyPose(this.rig, pose, delta, move === 'robot' ? 22 : 16);
 
     // biểu cảm: đang nhảy thì cười tươi, thỉnh thoảng chớp mắt
     this.blinkTimer -= delta;
