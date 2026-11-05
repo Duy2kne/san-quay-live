@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { buildCharacter, lookFor, basePose, applyPose, setExpression, HEAD_Y, NECK_Y } from './character.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
@@ -28,14 +29,15 @@ let droneTimer = null;
 
 // Camera views (8 presets)
 export const CAMERA_PRESETS = [
-  { name: 'Toàn cảnh Club', pos: [0, 14, 28], lookAt: [0, 3, 0] },
-  { name: 'Sân khấu & DJ', pos: [0, 5.5, 10], lookAt: [0, 4.2, -12] },
+  { name: 'Toàn cảnh Club', pos: [0, 10.5, 23], lookAt: [0, 3.2, -5] },
+  { name: 'Sân khấu & DJ', pos: [0, 4.7, -5.2], lookAt: [0, 3.7, -14.7] },
   { name: 'Sàn nhảy trung tâm', pos: [0, 3.8, 9], lookAt: [0, 1.5, 0] },
   { name: 'Quầy Bar VIP', pos: [-16, 5, 8], lookAt: [-10, 2, 0] },
   { name: 'Từ trên cao xuống', pos: [0, 32, 2], lookAt: [0, 0, 0] },
   { name: 'Góc thấp sàn quẩy', pos: [6, 1.2, 8], lookAt: [0, 2, -2] },
   { name: 'Lồng vũ công', pos: [12, 9, -2], lookAt: [11, 7, -6] },
-  { name: 'Góc DJ nhìn xuống', pos: [0, 5.8, -14], lookAt: [0, 2, 10] },
+  { name: 'Góc DJ nhìn xuống', pos: [0, 6.2, -12.5], lookAt: [0, 1.2, 6] },
+  { name: 'Cận cảnh khán giả', pos: [0, 3.4, 17], lookAt: [0, 1.6, 6] },
 ];
 
 let currentCameraIndex = 0;
@@ -70,9 +72,9 @@ export const isSoftwareGl = (() => {
 
 export function initScene(container) {
   scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x060212, 0.016);
+  scene.fog = new THREE.FogExp2(0x0a0420, 0.0085);
 
-  camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 250);
+  camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 400);
   camera.position.set(...CAMERA_PRESETS[0].pos);
 
   renderer = new THREE.WebGLRenderer({
@@ -84,7 +86,7 @@ export function initScene(container) {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.15;
+  renderer.toneMappingExposure = 1.0;
   renderer.shadowMap.enabled = !isSoftwareGl;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -92,14 +94,16 @@ export function initScene(container) {
 
   const pmremGenerator = new THREE.PMREMGenerator(renderer);
   scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
+  // Ánh sáng môi trường chỉ để kim loại / quả cầu disco có phản chiếu; để cao sẽ làm nhân vật sáng loá trắng
+  scene.environmentIntensity = 0.22;
   pmremGenerator.dispose();
 
   const renderScene = new RenderPass(scene, camera);
   bloomPass = new UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
-    isSoftwareGl ? 0.5 : 1.1,
+    isSoftwareGl ? 0.45 : 0.8,
     0.4,
-    0.78
+    0.9 // chỉ đèn / neon thật sáng mới toả, quần áo sáng màu không bị loá trắng
   );
 
   composer = new EffectComposer(renderer);
@@ -194,6 +198,130 @@ function buildNightclubStructure() {
 
   // City Skyline
   buildCityBackdrop();
+
+  // Vỏ câu lạc bộ: vách kính nhìn ra thành phố, tường neon, giàn đèn trần, viền sàn nhảy
+  buildClubShell();
+}
+
+// Cửa sổ thành phố sáng đèn (texture dùng chung)
+let _windowTex = null;
+function cityWindowTexture() {
+  if (_windowTex) return _windowTex;
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = '#05030d';
+  g.fillRect(0, 0, 64, 128);
+  const cols = ['#ffd27a', '#9ad7ff', '#ff9ad5', '#fff3c4'];
+  for (let y = 4; y < 128; y += 8) {
+    for (let x = 4; x < 64; x += 8) {
+      if (Math.random() < 0.42) {
+        g.fillStyle = cols[(Math.random() * cols.length) | 0];
+        g.globalAlpha = 0.5 + Math.random() * 0.5;
+        g.fillRect(x, y, 4, 5);
+      }
+    }
+  }
+  g.globalAlpha = 1;
+  _windowTex = new THREE.CanvasTexture(c);
+  _windowTex.colorSpace = THREE.SRGBColorSpace;
+  _windowTex.wrapS = _windowTex.wrapT = THREE.RepeatWrapping;
+  return _windowTex;
+}
+
+function buildClubShell() {
+  const shell = new THREE.Group();
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0x0b0716, metalness: 0.8, roughness: 0.35 });
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0x1b2246, metalness: 0.9, roughness: 0.05, transparent: true, opacity: 0.18, depthWrite: false });
+  const neon = (c) => new THREE.MeshBasicMaterial({ color: c });
+
+  // 1. Vách kính phía sau sân khấu (z = -24) và hai bên (x = ±30): khung đen + kính mờ, nhìn ra thành phố
+  const glassWall = (w, h, pos, rotY) => {
+    const g = new THREE.Group();
+    const glass = new THREE.Mesh(new THREE.PlaneGeometry(w, h), glassMat);
+    glass.position.y = h / 2;
+    g.add(glass);
+    for (let x = -w / 2; x <= w / 2 + 0.01; x += 5) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(0.25, h, 0.25), frameMat);
+      m.position.set(x, h / 2, 0);
+      g.add(m);
+    }
+    for (const y of [0.1, h / 2, h - 0.1]) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.22, 0.25), frameMat);
+      m.position.set(0, y, 0);
+      g.add(m);
+    }
+    g.position.set(...pos);
+    g.rotation.y = rotY;
+    shell.add(g);
+  };
+  glassWall(64, 20, [0, 0, -24], 0);
+  glassWall(56, 20, [-30, 0, 4], Math.PI / 2);
+  glassWall(56, 20, [30, 0, 4], -Math.PI / 2);
+
+  // 2. Cột neon đứng dọc vách hai bên + dải LED ngang (nháy theo nhạc)
+  const neonColors = [0xff2fb3, 0x22d3ee, 0xa855f7, 0xfacc15];
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 7; i++) {
+      const z = -18 + i * 6.5;
+      const col = neonColors[(i + (side > 0 ? 1 : 0)) % neonColors.length];
+      const tube = new THREE.Mesh(new THREE.BoxGeometry(0.18, 12, 0.18), neon(col));
+      tube.position.set(side * 29.4, 6, z);
+      shell.add(tube);
+      wallNeons.push(tube);
+    }
+    const band = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.35, 52), neon(0xff2fb3));
+    band.position.set(side * 29.3, 12.5, 4);
+    shell.add(band);
+    wallNeons.push(band);
+  }
+  const backBand = new THREE.Mesh(new THREE.BoxGeometry(60, 0.35, 0.2), neon(0x22d3ee));
+  backBand.position.set(0, 13.5, -23.7);
+  shell.add(backBand);
+  wallNeons.push(backBand);
+
+  // 3. Giàn đèn trần (truss) hình chữ nhật + bóng đèn nhỏ màu
+  const trussMat = new THREE.MeshStandardMaterial({ color: 0x9aa3b5, metalness: 0.9, roughness: 0.3 });
+  const trussY = 17;
+  const tw = 30;
+  const td = 30;
+  for (const [w, d, x, z] of [[tw, 0.4, 0, -td / 2 + 2], [tw, 0.4, 0, td / 2 + 2], [0.4, td, -tw / 2, 2], [0.4, td, tw / 2, 2], [tw, 0.4, 0, 2]]) {
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(w, 0.4, d), trussMat);
+    beam.position.set(x, trussY, z);
+    shell.add(beam);
+  }
+  const bulbGeo = new THREE.SphereGeometry(0.22, 10, 8);
+  for (let i = 0; i < 24; i++) {
+    const t = i / 24;
+    const onFront = i % 2 === 0;
+    const bulb = new THREE.Mesh(bulbGeo, neon(neonColors[i % neonColors.length]));
+    bulb.position.set(-tw / 2 + t * tw, trussY - 0.45, onFront ? td / 2 + 2 : -td / 2 + 2);
+    shell.add(bulb);
+    wallNeons.push(bulb);
+  }
+
+  // 4. Viền neon quanh sàn nhảy
+  const edge = 14.55;
+  const edgeMat = neon(0x22d3ee);
+  for (const [w, d, x, z] of [[edge * 2, 0.12, 0, edge], [edge * 2, 0.12, 0, -edge], [0.12, edge * 2, edge, 0], [0.12, edge * 2, -edge, 0]]) {
+    const line = new THREE.Mesh(new THREE.BoxGeometry(w, 0.08, d), edgeMat);
+    line.position.set(x, 0.07, z);
+    shell.add(line);
+  }
+  wallNeons.push({ material: edgeMat, isEdge: true });
+
+  scene.add(shell);
+}
+
+// Nhấp nháy neon tường / trần theo phách
+const wallNeons = [];
+function pulseWallNeons(beatNum) {
+  const palette = [0xff2fb3, 0x22d3ee, 0xa855f7, 0xfacc15, 0x34d399];
+  wallNeons.forEach((m, i) => {
+    if (!m.material) return;
+    if ((i + beatNum) % 3 === 0) m.material.color.setHex(palette[(i + beatNum) % palette.length]);
+  });
 }
 
 function buildDjBoothAndDjCharacter() {
@@ -271,7 +399,7 @@ function buildDjBoothAndDjCharacter() {
   const laptopStandGeo = new THREE.BoxGeometry(1.0, 0.02, 0.8);
   const laptopMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.9 });
   const laptop = new THREE.Mesh(laptopStandGeo, laptopMat);
-  laptop.position.set(0, 3.7, -0.4);
+  laptop.position.set(2.55, 3.55, 0.3); // đặt lệch sang bên để không che mặt DJ
   laptop.rotation.x = -Math.PI / 8;
   stageGroup.add(laptop);
 
@@ -316,61 +444,42 @@ function buildDjBoothAndDjCharacter() {
   scene.add(stageGroup);
 }
 
+// DJ: áo bomber, mũ lưỡi trai, tai nghe phát sáng (đeo 1 bên tai)
+function makeDjRig(gender) {
+  const look = lookFor(gender, 777, 0);
+  look.outfit = gender === 'female' ? 'jacket_f' : 'bomber';
+  look.palette = [0x18181f, 0x111827, 0xec4899];
+  look.cap = gender !== 'female';
+  look.sunglasses = false;
+  const rig = buildCharacter(look);
+  const hpMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.3, metalness: 0.6 });
+  const glow = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x38bdf8, emissiveIntensity: 1.2 });
+  const headC = HEAD_Y - NECK_Y;
+  const band = new THREE.Mesh(new THREE.TorusGeometry(0.37, 0.025, 8, 24, Math.PI), hpMat);
+  band.position.set(0, headC, 0);
+  band.rotation.z = 0.08;
+  rig.head.add(band);
+  for (const sx of [-1, 1]) {
+    const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.07, 16), hpMat);
+    cup.rotation.z = Math.PI / 2;
+    cup.position.set(sx * 0.37, headC - 0.02, 0);
+    rig.head.add(cup);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.012, 6, 18), glow);
+    ring.rotation.y = Math.PI / 2;
+    ring.position.set(sx * 0.41, headC - 0.02, 0);
+    rig.head.add(ring);
+  }
+  return rig;
+}
+
 function buildDjInteractiveCharacter(stageGroup) {
   const djRoot = new THREE.Group();
-  djRoot.position.set(0, 1.8, -0.6); // standing behind DJ mixer
-
-  // Body
-  const bodyGeo = new THREE.CapsuleGeometry(0.3, 0.55, 8, 12);
-  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1e1b4b, roughness: 0.4 });
-  const body = new THREE.Mesh(bodyGeo, bodyMat);
-  body.position.y = 0.6;
-  djRoot.add(body);
-
-  // Head with headphones
-  const headGroup = new THREE.Group();
-  headGroup.position.y = 1.35;
-  djRoot.add(headGroup);
-
-  const headGeo = new THREE.SphereGeometry(0.45, 16, 16);
-  const headMat = new THREE.MeshStandardMaterial({ color: 0xffe0bd, roughness: 0.5 });
-  const head = new THREE.Mesh(headGeo, headMat);
-  headGroup.add(head);
-
-  // DJ Cap
-  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.47, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xec4899 }));
-  cap.position.y = 0.08;
-  const capVisor = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.04, 0.4), new THREE.MeshStandardMaterial({ color: 0xec4899 }));
-  capVisor.position.set(0, 0.06, -0.48);
-  headGroup.add(cap);
-  headGroup.add(capVisor);
-
-  // DJ Headphones (one ear on, one tilted)
-  const hpGeo = new THREE.TorusGeometry(0.5, 0.09, 8, 24, Math.PI);
-  const hpMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x38bdf8, emissiveIntensity: 0.6 });
-  const hp = new THREE.Mesh(hpGeo, hpMat);
-  hp.position.set(0, 0.1, 0);
-  hp.rotation.x = Math.PI / 2.3;
-  hp.rotation.z = -0.3;
-  headGroup.add(hp);
-
-  // DJ Arms
-  const armGeo = new THREE.CapsuleGeometry(0.1, 0.45, 6, 8);
-  const armMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6 });
-
-  const leftArm = new THREE.Group();
-  leftArm.position.set(-0.45, 0.85, 0);
-  const leftArmMesh = new THREE.Mesh(armGeo, armMat);
-  leftArmMesh.position.y = -0.22;
-  leftArm.add(leftArmMesh);
-  djRoot.add(leftArm);
-
-  const rightArm = new THREE.Group();
-  rightArm.position.set(0.45, 0.85, 0);
-  const rightArmMesh = new THREE.Mesh(armGeo, armMat);
-  rightArmMesh.position.y = -0.22;
-  rightArm.add(rightArmMesh);
-  djRoot.add(rightArm);
+  djRoot.position.set(0, 2.5, -0.75); // đứng trên bục sau bàn DJ (thấy rõ nửa người trên)
+  const djBody = new THREE.Group();
+  djBody.scale.setScalar(1.35);
+  djRoot.add(djBody);
+  const rig = makeDjRig('male');
+  djBody.add(rig.root);
 
   // Floating DJ Billboard
   const djCanvas = document.createElement('canvas');
@@ -390,18 +499,20 @@ function buildDjInteractiveCharacter(stageGroup) {
 
   const djTex = new THREE.CanvasTexture(djCanvas);
   const djSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: djTex, transparent: true, depthTest: false }));
-  djSprite.position.set(0, 2.4, 0);
+  djSprite.position.set(0, 2.75, 0);
   djSprite.scale.set(2.4, 0.6, 1);
   djRoot.add(djSprite);
 
+  const riser = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.7, 1.4), new THREE.MeshStandardMaterial({ color: 0x0b0716, metalness: 0.7, roughness: 0.3 }));
+  riser.position.set(0, 2.15, -0.85);
+  stageGroup.add(riser);
   stageGroup.add(djRoot);
 
   djCharacter = {
     root: djRoot,
-    headGroup,
-    leftArm,
-    rightArm,
-    body,
+    djBody,
+    rig,
+    gender: 'male',
     djCanvas,
     djTex,
     djSprite,
@@ -414,6 +525,13 @@ export function setDjMove(move) {
 
 export function updateDjConfig(config) {
   if (!djCharacter || !config) return;
+  const g = config.gender === 'female' ? 'female' : 'male';
+  if (g !== djCharacter.gender) {
+    djCharacter.djBody.remove(djCharacter.rig.root);
+    djCharacter.rig = makeDjRig(g);
+    djCharacter.djBody.add(djCharacter.rig.root);
+    djCharacter.gender = g;
+  }
   const djName = config.nickname || config.name || 'DJ CHỦ KÊNH';
   const { djCanvas, djTex } = djCharacter;
   if (djCanvas && djTex) {
@@ -825,29 +943,35 @@ function createBarCounter(x, y, z) {
 
 function buildCityBackdrop() {
   const cityGroup = new THREE.Group();
-  cityGroup.position.set(0, 0, 36);
-
-  for (let i = -18; i <= 18; i += 2) {
-    const h = 16 + Math.sin(i * 1.5) * 8 + Math.random() * 6;
-    const bGeo = new THREE.BoxGeometry(2.8, h, 2.8);
-    const bMat = new THREE.MeshStandardMaterial({
-      color: 0x04020c,
-      emissive: Math.random() > 0.4 ? 0x1e1b4b : 0x0f172a,
-      emissiveIntensity: 0.2,
-      roughness: 0.8,
-    });
-    const b = new THREE.Mesh(bGeo, bMat);
-    b.position.set(i * 2.2, h / 2, Math.random() * 5);
+  const winTex = cityWindowTexture();
+  const addBuilding = (x, z, w, h) => {
+    const tex = winTex.clone();
+    tex.needsUpdate = true;
+    tex.repeat.set(Math.max(1, Math.round(w / 3)), Math.max(1, Math.round(h / 6)));
+    tex.offset.set(Math.random(), Math.random());
+    const mat = new THREE.MeshStandardMaterial({ color: 0x07050f, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.55, roughness: 0.9 });
+    const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), mat);
+    b.position.set(x, h / 2 - 2, z);
     cityGroup.add(b);
+  };
+  // phía sau sân khấu
+  for (let x = -70; x <= 70; x += 6 + Math.random() * 3) addBuilding(x, -40 - Math.random() * 25, 4 + Math.random() * 4, 18 + Math.random() * 34);
+  // hai bên
+  for (const side of [-1, 1]) {
+    for (let z = -30; z <= 40; z += 6 + Math.random() * 3) addBuilding(side * (45 + Math.random() * 20), z, 4 + Math.random() * 4, 16 + Math.random() * 30);
   }
+  // mặt trăng
+  const moon = new THREE.Mesh(new THREE.SphereGeometry(4, 20, 16), new THREE.MeshBasicMaterial({ color: 0xfff1d6, fog: false }));
+  moon.position.set(-38, 48, -95);
+  cityGroup.add(moon);
   scene.add(cityGroup);
 }
 
 function buildLighting() {
-  const ambient = new THREE.AmbientLight(0x1a0b2e, 1.2);
+  const ambient = new THREE.AmbientLight(0x2a1650, 0.7);
   scene.add(ambient);
 
-  const hemiLight = new THREE.HemisphereLight(0x7c3aed, 0x020617, 1.0);
+  const hemiLight = new THREE.HemisphereLight(0x8b5cf6, 0x0b0420, 0.55);
   scene.add(hemiLight);
 
   const spotColors = [0xec4899, 0x3b82f6, 0x10b981, 0xf59e0b];
@@ -859,7 +983,7 @@ function buildLighting() {
   ];
 
   spotPositions.forEach((pos, idx) => {
-    const spot = new THREE.SpotLight(spotColors[idx % spotColors.length], 50, 45, Math.PI / 6, 0.4, 1.2);
+    const spot = new THREE.SpotLight(spotColors[idx % spotColors.length], 22, 45, Math.PI / 6, 0.45, 1.2);
     spot.position.set(...pos);
     spot.castShadow = !isSoftwareGl;
     spot.shadow.mapSize.width = 512;
@@ -932,13 +1056,14 @@ export function stopDroneCamera() {
 }
 
 export function onBeatTick({ beatNum, phrase32 }) {
+  pulseWallNeons(beatNum);
   if (discoBall) {
     discoBall.scale.set(1.08, 1.08, 1.08);
   }
 
   // DJ Beat Routine
   if (djCharacter) {
-    djCharacter.headGroup.rotation.x = 0.25;
+    // gật đầu theo phách đã có trong tư thế DJ (animateDjCharacter)
 
     // Change DJ moves
     if (beatNum % 16 === 0) {
@@ -1038,70 +1163,98 @@ export function renderSceneLoop(delta, timeSec) {
 
 function animateDjCharacter(delta, timeSec) {
   if (!djCharacter) return;
-  const t = timeSec * 8;
-  const { headGroup, leftArm, rightArm, root } = djCharacter;
-
-  headGroup.rotation.x = THREE.MathUtils.lerp(headGroup.rotation.x, 0, 0.1);
+  const t = timeSec * 4.2;
+  const { rig, root } = djCharacter;
+  const p = basePose();
+  const nod = Math.abs(Math.sin(t));
+  // tay đặt trên mặt bàn DJ
+  const deck = () => {
+    p.lu = [-0.95, 0, -0.18];
+    p.ru = [-0.95, 0, 0.18];
+    p.ll = [-0.6, 0];
+    p.rl = [-0.6, 0];
+  };
+  deck();
+  p.hx = nod * 0.22;
+  p.bob = nod * 0.03;
+  p.lk = nod * 0.15;
+  p.rk = nod * 0.15;
+  let expr = 'happy';
+  root.position.y = 2.5;
 
   switch (djCurrentMove) {
     case 'scratch':
-      leftArm.rotation.x = -Math.PI / 3 + Math.sin(t * 2) * 0.3;
-      leftArm.rotation.z = Math.sin(t * 2) * 0.2;
-      rightArm.rotation.x = -Math.PI / 4;
+      p.lu = [-0.95, Math.sin(t * 3) * 0.35, -0.25];
+      p.ll = [-0.7, Math.sin(t * 3) * 0.2];
+      p.hy = -0.25;
       break;
-
     case 'tweak_knobs':
-      leftArm.rotation.x = -Math.PI / 4;
-      rightArm.rotation.x = -Math.PI / 3;
-      rightArm.rotation.y = Math.sin(t * 3) * 0.4;
+      p.rl = [-0.65 + Math.sin(t * 5) * 0.12, 0];
+      p.ru = [-1.0, Math.sin(t * 2) * 0.2, 0.1];
+      p.hy = 0.15;
       break;
-
     case 'fader':
-      leftArm.rotation.x = -Math.PI / 3.5;
-      leftArm.rotation.y = Math.sin(t * 1.5) * 0.35;
-      rightArm.rotation.x = -Math.PI / 4;
+      p.lu = [-0.95, Math.sin(t * 1.5) * 0.4, -0.1];
+      p.ru = [-0.95, Math.sin(t * 1.5) * 0.4, 0.1];
       break;
-
-    case 'fist_pump':
-      rightArm.rotation.z = Math.PI * 0.8 + Math.sin(t) * 0.4;
-      leftArm.rotation.x = -Math.PI / 4;
+    case 'fist_pump': {
+      const pump = Math.sin(t * 2);
+      p.ru = [-0.25, 0, 2.6 + pump * 0.25];
+      p.rl = [0, 0.5 + Math.max(0, pump) * 0.4];
+      p.hx = 0.1 + nod * 0.2;
+      expr = 'joy';
       break;
-
+    }
     case 'wave_hands':
-      leftArm.rotation.z = -Math.PI * 0.6 + Math.sin(t * 0.5) * 0.4;
-      rightArm.rotation.z = Math.PI * 0.6 - Math.sin(t * 0.5) * 0.4;
+      p.lu = [-0.2, 0, -2.3 + Math.sin(t) * 0.35];
+      p.ru = [-0.2, 0, 2.3 + Math.sin(t) * 0.35];
+      p.ll = [0, 0.3];
+      p.rl = [0, 0.3];
+      p.sway = Math.sin(t) * 0.12;
+      expr = 'joy';
       break;
-
     case 'point_crowd':
-      rightArm.rotation.x = -Math.PI / 2;
-      rightArm.rotation.z = 0;
-      leftArm.rotation.x = -Math.PI / 4;
+      p.ru = [-1.45, 0, 0.15 + Math.sin(t) * 0.25];
+      p.rl = [0, 0];
+      p.lean = -0.05;
+      expr = 'joy';
       break;
-
-    case 'overhead_clap':
-      leftArm.rotation.x = -Math.PI / 1.5;
-      rightArm.rotation.x = -Math.PI / 1.5;
-      leftArm.rotation.y = Math.sin(t * 2) * 0.4;
-      rightArm.rotation.y = -Math.sin(t * 2) * 0.4;
+    case 'overhead_clap': {
+      const cl = Math.sin(t * 2.5);
+      p.lu = [-2.7, 0, 0.3 + cl * 0.15];
+      p.ru = [-2.7, 0, -0.3 - cl * 0.15];
+      p.ll = [-0.25, 0];
+      p.rl = [-0.25, 0];
+      expr = 'joy';
       break;
-
-    case 'drop_jump':
-      root.position.y = 1.8 + Math.abs(Math.sin(t)) * 0.4;
-      leftArm.rotation.z = -Math.PI * 0.85;
-      rightArm.rotation.z = Math.PI * 0.85;
+    }
+    case 'drop_jump': {
+      const jump = Math.max(0, Math.sin(t * 1.5));
+      p.lu = [-0.2, 0, -2.6];
+      p.ru = [-0.2, 0, 2.6];
+      p.ll = [0, 0.2];
+      p.rl = [0, 0.2];
+      p.bob = jump * 0.3;
+      p.lt = -jump * 1.4;
+      p.rt = -jump * 1.4;
+      p.lk = jump * 2.6;
+      p.rk = jump * 2.6;
+      expr = 'joy';
       break;
-
+    }
     case 'thank_bow':
-      headGroup.rotation.x = 0.5;
-      leftArm.rotation.x = -Math.PI / 4;
-      rightArm.rotation.x = -Math.PI / 4;
+      p.lean = 0.5;
+      p.hx = 0.3;
+      p.lu = [-0.6, 0, 0.35];
+      p.ru = [-0.6, 0, -0.35];
+      p.ll = [-1.3, 0];
+      p.rl = [-1.3, 0];
       break;
-
-    default: // nod
-      headGroup.rotation.x = Math.sin(t * 0.5) * 0.2;
-      leftArm.rotation.x = -Math.PI / 4;
-      rightArm.rotation.x = -Math.PI / 4;
+    default:
+      break;
   }
+  applyPose(rig, p, delta, 12);
+  setExpression(rig, expr);
 }
 
 function animateCo2Smoke(delta) {
