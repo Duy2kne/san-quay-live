@@ -75,6 +75,8 @@ export async function handleAdminAction(action, payload, io, clientIp) {
   switch (action) {
     case 'connect_live': {
       const channel = payload?.channel;
+      // Đang chạy demo thì tắt trước, tránh lẫn người ảo với người xem thật
+      if (isDemoRunning()) stopDemo();
       const res = await connectToTikTokLive(channel);
       // Không trả cả roomInfo (rất lớn) về trình duyệt
       return { success: true, result: { uniqueId: res.uniqueId, roomId: res.state?.roomId || '' } };
