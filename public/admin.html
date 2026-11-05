@@ -310,8 +310,9 @@
     <div id="panel-music" class="tab-panel">
       <h2 style="font-size: 18px; margin-bottom: 14px;">Quản lý Nhạc YouTube Đồng Bộ</h2>
       <div class="form-group">
-        <label>Dán link bài hát YouTube (watch?v=, youtu.be, shorts, playlist):</label>
-        <input type="text" id="input-youtube-url" class="form-control" placeholder="https://www.youtube.com/watch?v=..." />
+        <label>Dán link YouTube, <b>mỗi dòng một link</b> (dán 3 link một lần được; nhận watch?v=, youtu.be, shorts, playlist):</label>
+        <textarea id="input-youtube-url" class="form-control" rows="4" placeholder="https://www.youtube.com/watch?v=...&#10;https://youtu.be/...&#10;https://youtu.be/..."></textarea>
+        <div style="font-size: 12px; opacity: 0.75; margin-top: 6px;">💬 Người trong <b>Top 3 donate</b> bình luận <b>đổi bài</b> (hoặc <i>next</i>, <i>bài khác</i>) thì sàn tự chuyển sang bài tiếp theo trong hàng chờ (cách nhau tối thiểu 30 giây).</div>
       </div>
       <div class="btn-group">
         <button id="btn-add-music" class="btn btn-primary">Thêm vào hàng chờ</button>
