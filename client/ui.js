@@ -10,13 +10,19 @@ export function initUI(onScopeChange) {
 
   // Audio unlock banner click
   const unlockBtn = document.getElementById('btn-unlock-audio');
+  const doUnlock = () => {
+    unlockAudio();
+    unlockYouTubeAudio();
+    if (unlockBtn) unlockBtn.style.display = 'none';
+  };
   if (unlockBtn) {
-    unlockBtn.addEventListener('click', () => {
-      unlockAudio();
-      unlockYouTubeAudio();
-      unlockBtn.style.display = 'none';
-    });
+    unlockBtn.addEventListener('click', doUnlock);
   }
+  // Mỗi người xem mở trang trên trình duyệt riêng đều bị chặn autoplay có tiếng
+  // cho đến khi họ tương tác; bắt luôn cú bấm/chạm đầu tiên ở bất kỳ đâu trên trang
+  // để không phải ai cũng tự tìm ra nút loa nhỏ mới nghe được nhạc.
+  window.addEventListener('pointerdown', doUnlock, { once: true });
+  window.addEventListener('keydown', doUnlock, { once: true });
 
   // Top tab switching
   const tabs = document.querySelectorAll('.top-tab-btn');
