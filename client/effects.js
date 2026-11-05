@@ -5,6 +5,11 @@ import { triggerDroneCamera } from './scene.js';
 let activeParticles = [];
 let sceneRef = null;
 
+// Giới hạn số đèn spotlight hiệu ứng cùng lúc: quà donate dồn dập (combo) từng cộng dồn
+// không giới hạn gây loá trắng toàn màn hình.
+const MAX_EXTRA_SPOTLIGHTS = 2;
+let extraSpotlights = [];
+
 export function initEffects(scene) {
   sceneRef = scene;
 }
@@ -324,7 +329,17 @@ function spawnFloorGlow(pos) {
 
 function spawnSpotlightBeam(pos) {
   if (!sceneRef) return;
-  const spot = new THREE.SpotLight(0xffd700, 40, 30, Math.PI / 7, 0.3);
+
+  // Quà dồn dập liên tục gọi hàm này: dọn bớt đèn cũ trước khi vượt giới hạn
+  // để ánh sáng không cộng dồn làm trắng xoá cả màn hình.
+  while (extraSpotlights.length >= MAX_EXTRA_SPOTLIGHTS) {
+    const old = extraSpotlights.shift();
+    clearTimeout(old.timer);
+    sceneRef.remove(old.spot);
+    sceneRef.remove(old.targetObj);
+  }
+
+  const spot = new THREE.SpotLight(0xffd700, 18, 30, Math.PI / 7, 0.3);
   spot.position.set(pos.x, 18, pos.z);
   const targetObj = new THREE.Object3D();
   targetObj.position.copy(pos);
@@ -332,10 +347,13 @@ function spawnSpotlightBeam(pos) {
   spot.target = targetObj;
   sceneRef.add(spot);
 
-  setTimeout(() => {
+  const entry = { spot, targetObj, timer: null };
+  entry.timer = setTimeout(() => {
     sceneRef.remove(spot);
     sceneRef.remove(targetObj);
+    extraSpotlights = extraSpotlights.filter(e => e !== entry);
   }, 6000);
+  extraSpotlights.push(entry);
 }
 
 function runVipShow(avatarManager, pos) {
