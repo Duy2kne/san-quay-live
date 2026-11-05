@@ -983,7 +983,7 @@ function buildLighting() {
   ];
 
   spotPositions.forEach((pos, idx) => {
-    const spot = new THREE.SpotLight(spotColors[idx % spotColors.length], 22, 45, Math.PI / 6, 0.45, 1.2);
+    const spot = new THREE.SpotLight(spotColors[idx % spotColors.length], 14, 45, Math.PI / 6, 0.45, 1.2);
     spot.position.set(...pos);
     spot.castShadow = !isSoftwareGl;
     spot.shadow.mapSize.width = 512;
@@ -1026,10 +1026,16 @@ export function setCameraAutoSwitch(enabled) {
   cameraAutoSwitch = !!enabled;
 }
 
+// Vòng xoay camera tự động chỉ chọn trong các góc sàn nhảy/khán giả,
+// bỏ qua góc sân khấu & DJ để không bị cắt cảnh vào DJ.
+const AUTO_CAMERA_INDICES = CAMERA_PRESETS.map((_, i) => i).filter((i) => i !== 1 && i !== 7);
+
 function startCameraAutoSwitch() {
   setInterval(() => {
     if (cameraAutoSwitch && !droneCamActive) {
-      currentCameraIndex = (currentCameraIndex + 1) % CAMERA_PRESETS.length;
+      const pos = AUTO_CAMERA_INDICES.indexOf(currentCameraIndex);
+      const next = AUTO_CAMERA_INDICES[(pos + 1) % AUTO_CAMERA_INDICES.length];
+      currentCameraIndex = next;
       switchCameraPreset(currentCameraIndex, false);
     }
   }, 25000);
