@@ -1,4 +1,5 @@
 import { unlockAudio } from './sfx.js';
+import { unlockYouTubeAudio } from './youtube.js';
 
 let topScope = 'session';
 let currentTopData = { sessionTop: [], todayTop: [], weekTop: [], allTop: [] };
@@ -12,6 +13,7 @@ export function initUI(onScopeChange) {
   if (unlockBtn) {
     unlockBtn.addEventListener('click', () => {
       unlockAudio();
+      unlockYouTubeAudio();
       unlockBtn.style.display = 'none';
     });
   }
