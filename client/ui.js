@@ -41,7 +41,14 @@ export function initUI(onScopeChange) {
   }
 }
 
-export function updateHeader(sessionData) {
+// Gộp dữ liệu header: mỗi sự kiện chỉ gửi một phần (vd. chỉ số người xem), không được xoá phần còn lại
+const headerState = { channel: '', status: 'idle', viewerCount: 0, activeCount: 0 };
+
+export function updateHeader(partial) {
+  for (const k of Object.keys(headerState)) {
+    if (partial && partial[k] !== undefined && partial[k] !== null) headerState[k] = partial[k];
+  }
+  const sessionData = headerState;
   const channelEl = document.getElementById('header-channel');
   const statusEl = document.getElementById('header-status');
   const viewersEl = document.getElementById('header-viewers');
@@ -55,7 +62,7 @@ export function updateHeader(sessionData) {
     if (sessionData.status === 'connected') {
       statusEl.className = 'status-badge live';
       statusEl.textContent = '🔴 ĐANG LIVE';
-    } else if (sessionData.status === 'connecting') {
+    } else if (sessionData.status === 'connecting' || sessionData.status === 'disconnected') {
       statusEl.className = 'status-badge connecting';
       statusEl.textContent = '⏳ ĐANG KẾT NỐI...';
     } else {
@@ -200,6 +207,8 @@ export function addEventFeedItem(eventItem) {
     content = `⭐ <strong>${escapeHtml(eventItem.nickname)}</strong> vừa theo dõi kênh`;
   } else if (eventItem.type === 'share') {
     content = `📢 <strong>${escapeHtml(eventItem.nickname)}</strong> đã chia sẻ live`;
+  } else if (eventItem.type === 'song_change') {
+    content = `🎵 <strong>${escapeHtml(eventItem.nickname)}</strong> đổi bài: ${escapeHtml(eventItem.title || '')}`;
   } else if (eventItem.type === 'chat') {
     content = `💬 <strong>${escapeHtml(eventItem.nickname)}</strong>: ${escapeHtml(eventItem.comment)}`;
   } else {
