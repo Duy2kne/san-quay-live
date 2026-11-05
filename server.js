@@ -1,5 +1,7 @@
 import express from 'express';
 import http from 'http';
+import https from 'https';
+import { HttpsProxyAgent } from 'hpagent';
 import { Server as SocketIOServer } from 'socket.io';
 import compression from 'compression';
 import cors from 'cors';
@@ -10,7 +12,7 @@ import dotenv from 'dotenv';
 
 import { initStore, getStore, saveAllSync } from './src/store.js';
 import { sessionManager } from './src/session.js';
-import { setIoInstance, connectToTikTokLive, disconnectTikTokLive } from './src/tiktok.js';
+import { setIoInstance, connectToTikTokLive, disconnectTikTokLive, env } from './src/tiktok.js';
 import { getTopDonors, getAllDonorsRanked } from './src/donors.js';
 import { getMusicState, reportTrackDuration, reportTrackError } from './src/music.js';
 import { startDemo, isDemoRunning } from './src/demo.js';
@@ -78,6 +80,7 @@ app.use(
           'https://img.youtube.com',
           'https://*.tiktokcdn.com',
           'https://*.tiktokcdn-us.com',
+          'https://*.tiktokcdn-eu.com',
           'https://*.ibyteimg.com',
         ],
         frameSrc: [
@@ -104,6 +107,37 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Serve static assets
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Tải ảnh (tối đa 2MB, 6 giây); đi qua TIKTOK_PROXY nếu có đặt
+function fetchImage(url, redirects = 2) {
+  return new Promise((resolve, reject) => {
+    const proxy = env('TIKTOK_PROXY');
+    const agent = proxy ? new HttpsProxyAgent({ proxy }) : undefined;
+    const req = https.get(url, { agent, timeout: 6000, headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } }, (r) => {
+      if (r.statusCode >= 300 && r.statusCode < 400 && r.headers.location && redirects > 0) {
+        r.resume();
+        const next = new URL(r.headers.location, url).toString();
+        if (!/^https:/.test(next)) return reject(new Error('bad redirect'));
+        return fetchImage(next, redirects - 1).then(resolve, reject);
+      }
+      if (r.statusCode !== 200) {
+        r.resume();
+        return reject(new Error(`status ${r.statusCode}`));
+      }
+      const chunks = [];
+      let size = 0;
+      r.on('data', (c) => {
+        size += c.length;
+        if (size > 2 * 1024 * 1024) { req.destroy(new Error('too large')); return; }
+        chunks.push(c);
+      });
+      r.on('end', () => resolve({ contentType: String(r.headers['content-type'] || 'image/jpeg'), buffer: Buffer.concat(chunks) }));
+      r.on('error', reject);
+    });
+    req.on('timeout', () => req.destroy(new Error('timeout')));
+    req.on('error', reject);
+  });
+}
+
 // Avatar Proxy with LRU cache
 const avatarCache = new Map();
 const MAX_AVATAR_CACHE = 500;
@@ -116,7 +150,9 @@ app.get('/api/avatar', async (req, res) => {
 
   try {
     const parsed = new URL(targetUrl);
-    const validDomain = /(?:^|\.)(?:tiktokcdn\.com|tiktokcdn-us\.com|ibyteimg\.com)$/i.test(parsed.hostname);
+    // Ảnh TikTok nằm ở nhiều cụm máy chủ: tiktokcdn.com, tiktokcdn-us.com, tiktokcdn-eu.com, ibyteimg.com...
+    const validDomain = parsed.protocol === 'https:' &&
+      /(?:^|\.)(?:tiktokcdn(?:-[a-z]{2,4})?\.com|ibyteimg\.com|ibytedtos\.com|muscdn\.com)$/i.test(parsed.hostname);
     if (!validDomain) {
       return res.status(403).send('Domain not allowed');
     }
@@ -128,28 +164,10 @@ app.get('/api/avatar', async (req, res) => {
       return res.send(cached.buffer);
     }
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000);
-
-    const response = await fetch(targetUrl, {
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      },
-    });
-    clearTimeout(timeout);
-
-    if (!response.ok) {
-      return res.status(response.status).send('Failed to fetch image');
-    }
-
-    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    const { contentType, buffer } = await fetchImage(targetUrl);
     if (!contentType.startsWith('image/')) {
       return res.status(400).send('Target is not an image');
     }
-
-    const arrayBuf = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuf);
 
     if (avatarCache.size >= MAX_AVATAR_CACHE) {
       const firstKey = avatarCache.keys().next().value;
@@ -161,7 +179,7 @@ app.get('/api/avatar', async (req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=86400');
     return res.send(buffer);
   } catch (err) {
-    return res.status(500).send(`Avatar proxy error: ${err.message}`);
+    return res.status(502).send('Avatar proxy error');
   }
 });
 
@@ -287,8 +305,12 @@ io.on('connection', (socket) => {
 });
 
 // Keep-Alive background pinger for free cloud hosting
-const keepAliveUrl = process.env.KEEP_ALIVE_URL || process.env.RENDER_EXTERNAL_URL;
-if (process.env.KEEP_ALIVE !== 'off' && keepAliveUrl) {
+const keepAliveUrl = env('KEEP_ALIVE_URL') || env('RENDER_EXTERNAL_URL');
+if (env('KEEP_ALIVE').toLowerCase() === 'off') {
+  console.log('[keep-alive] Đã tắt (KEEP_ALIVE=off).');
+} else if (!keepAliveUrl) {
+  console.log('[keep-alive] Chưa có địa chỉ web (KEEP_ALIVE_URL / RENDER_EXTERNAL_URL), bỏ qua.');
+} else {
   const target = `${keepAliveUrl.replace(/\/$/, '')}/health`;
   console.log(`[keep-alive] Configured to ping ${target} every 10 minutes.`);
   setInterval(async () => {
