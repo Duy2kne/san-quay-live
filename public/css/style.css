@@ -243,7 +243,8 @@ body, html {
 /* Audio unlock prompt */
 .btn-unlock-audio {
   position: absolute;
-  top: 140px;
+  top: auto;
+  bottom: 74px;
   background: linear-gradient(135deg, #10b981, #059669);
   color: #fff;
   border: none;
@@ -621,3 +622,133 @@ body.obs-transparent #webgl-canvas-container canvas {
   to { transform: scale(1.04); }
 }
 
+
+
+/* ===== Bố cục gọn cho điện thoại và màn hẹp ===== */
+@media (max-width: 768px) {
+  .hud-header {
+    padding: 8px 10px !important;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .header-left, .header-right {
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .club-title {
+    font-size: 15px !important;
+    white-space: nowrap;
+  }
+  .channel-tag {
+    font-size: 11px !important;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .status-badge, .stats-pill {
+    font-size: 10.5px !important;
+    padding: 3px 8px !important;
+    white-space: nowrap;
+  }
+  .hud-body {
+    top: 92px !important;
+    left: 8px !important;
+    right: 8px !important;
+    bottom: auto !important;
+  }
+  .top-donors-card {
+    width: 168px !important;
+    max-height: 230px;
+    padding: 8px !important;
+    font-size: 11px;
+  }
+  .top-tabs {
+    flex-wrap: wrap;
+  }
+  .top-tab-btn {
+    font-size: 10px !important;
+    padding: 2px 5px !important;
+  }
+  .player-dock {
+    right: 8px !important;
+    bottom: 8px !important;
+    padding: 4px !important;
+  }
+  .player-dock-header {
+    display: none !important;
+  }
+  .player-frame-box {
+    width: 200px !important;
+    height: 200px !important;
+  }
+  .gender-hint-ticker {
+    left: 8px !important;
+    right: 216px;
+    transform: none !important;
+    bottom: 12px !important;
+    font-size: 11px !important;
+    padding: 6px 10px !important;
+    animation: none !important;
+  }
+  .btn-unlock-audio {
+    bottom: 220px !important;
+    font-size: 14px !important;
+    padding: 10px 18px !important;
+  }
+}
+
+
+/* ===== Khung nhạc: chỉ hiện tên bài, trình phát YouTube chạy ngầm ===== */
+.player-dock {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+.player-dock-header { display: none !important; }
+.player-frame-box {
+  position: fixed !important;
+  left: 0;
+  bottom: 0;
+  width: 200px !important;
+  height: 200px !important;
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+.now-playing-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 300px;
+  padding: 8px 16px 8px 8px;
+  border-radius: 40px;
+  background: rgba(14, 6, 32, 0.82);
+  border: 1px solid rgba(236, 72, 153, 0.55);
+  box-shadow: 0 0 18px rgba(236, 72, 153, 0.35);
+  backdrop-filter: blur(8px);
+}
+.np-disc {
+  font-size: 26px;
+  line-height: 1;
+  animation: npSpin 3s linear infinite;
+}
+.np-text { display: flex; flex-direction: column; min-width: 0; }
+.np-label { font-size: 10px; font-weight: 800; letter-spacing: 1px; color: #f472b6; }
+.np-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 230px;
+}
+@keyframes npSpin { to { transform: rotate(360deg); } }
+@media (max-width: 768px) {
+  .now-playing-chip { max-width: 190px; padding: 6px 12px 6px 6px; }
+  .np-title { max-width: 130px; font-size: 11px; }
+  .gender-hint-ticker { right: 8px !important; bottom: 64px !important; }
+  .btn-unlock-audio { bottom: 110px !important; }
+}
