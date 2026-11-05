@@ -10,6 +10,24 @@ let sceneRef = null;
 const MAX_EXTRA_SPOTLIGHTS = 2;
 let extraSpotlights = [];
 
+// Chấm sáng mờm (glow) dùng chung cho mọi hạt để phát sáng neon thay vì hình vuông cứng
+let _glowTex = null;
+function glowDotTexture() {
+  if (_glowTex) return _glowTex;
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 64;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grd.addColorStop(0, 'rgba(255,255,255,1)');
+  grd.addColorStop(0.4, 'rgba(255,255,255,0.7)');
+  grd.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 64, 64);
+  _glowTex = new THREE.CanvasTexture(c);
+  return _glowTex;
+}
+
 export function initEffects(scene) {
   sceneRef = scene;
 }
@@ -90,7 +108,8 @@ export function triggerFloorEffectByName(effectName, duration = 6000) {
     case 'glitter_bomb': spawnGlitterBomb(center); break;
     case 'fire_ring': spawnFireRing(); break;
     case 'laser_show': spawnLaserFrenzy(); break;
-    case 'light_dragon': runSuperDragonShow(null, center); break;
+    case 'light_dragon':
+    case 'light_lion': runSuperDragonShow(null, center); break;
     default: spawnFireworks(center);
   }
 }
@@ -117,20 +136,25 @@ function spawnHearts(pos) {
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   const mat = new THREE.PointsMaterial({
     color: 0xff1493,
-    size: 0.35,
+    size: 0.45,
+    map: glowDotTexture(),
     transparent: true,
     opacity: 1.0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
   });
 
   const p = new THREE.Points(geo, mat);
   sceneRef.add(p);
 
+  let age = 0;
   activeParticles.push({
     points: p,
     velocities,
     lifespan: 2.2,
     age: 0,
     update: (delta) => {
+      age += delta;
       const posAttr = p.geometry.attributes.position;
       for (let i = 0; i < count; i++) {
         posAttr.array[i * 3] += velocities[i].vx * delta;
@@ -138,7 +162,7 @@ function spawnHearts(pos) {
         posAttr.array[i * 3 + 2] += velocities[i].vz * delta;
       }
       posAttr.needsUpdate = true;
-      mat.opacity = Math.max(0, 1 - (p.age / 2.2));
+      mat.opacity = Math.max(0, 1 - (age / 2.2));
     },
   });
 }
@@ -175,21 +199,26 @@ function spawnConfetti(pos, count = 80) {
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
   const mat = new THREE.PointsMaterial({
-    size: 0.25,
+    size: 0.32,
     vertexColors: true,
+    map: glowDotTexture(),
     transparent: true,
     opacity: 1.0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
   });
 
   const p = new THREE.Points(geo, mat);
   sceneRef.add(p);
 
+  let age = 0;
   activeParticles.push({
     points: p,
     velocities,
     lifespan: 3.5,
     age: 0,
     update: (delta) => {
+      age += delta;
       const posAttr = p.geometry.attributes.position;
       for (let i = 0; i < count; i++) {
         posAttr.array[i * 3] += velocities[i].vx * delta;
@@ -200,6 +229,7 @@ function spawnConfetti(pos, count = 80) {
         }
       }
       posAttr.needsUpdate = true;
+      mat.opacity = Math.max(0, 1 - Math.max(0, (age - 2.5) / 1.0));
     },
   });
 }
@@ -226,20 +256,25 @@ function spawnMoneyRain(pos) {
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   const mat = new THREE.PointsMaterial({
     color: 0x22c55e,
-    size: 0.45,
+    size: 0.5,
+    map: glowDotTexture(),
     transparent: true,
     opacity: 0.95,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
   });
 
   const p = new THREE.Points(geo, mat);
   sceneRef.add(p);
 
+  let age = 0;
   activeParticles.push({
     points: p,
     velocities,
     lifespan: 4.5,
     age: 0,
     update: (delta) => {
+      age += delta;
       const posAttr = p.geometry.attributes.position;
       for (let i = 0; i < count; i++) {
         posAttr.array[i * 3] += velocities[i].vx * delta;
@@ -247,6 +282,7 @@ function spawnMoneyRain(pos) {
         posAttr.array[i * 3 + 2] += velocities[i].vz * delta;
       }
       posAttr.needsUpdate = true;
+      mat.opacity = Math.max(0, 0.95 * (1 - Math.max(0, (age - 3.2) / 1.3)));
     },
   });
 }
@@ -273,19 +309,25 @@ function spawnRoseRain() {
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   const mat = new THREE.PointsMaterial({
     color: 0xe11d48,
-    size: 0.35,
+    size: 0.4,
+    map: glowDotTexture(),
     transparent: true,
+    opacity: 1.0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
   });
 
   const p = new THREE.Points(geo, mat);
   sceneRef.add(p);
 
+  let age = 0;
   activeParticles.push({
     points: p,
     velocities,
     lifespan: 5.5,
     age: 0,
     update: (delta) => {
+      age += delta;
       const posAttr = p.geometry.attributes.position;
       for (let i = 0; i < count; i++) {
         posAttr.array[i * 3] += velocities[i].vx * delta;
@@ -293,6 +335,7 @@ function spawnRoseRain() {
         posAttr.array[i * 3 + 2] += velocities[i].vz * delta;
       }
       posAttr.needsUpdate = true;
+      mat.opacity = Math.max(0, 1 - Math.max(0, (age - 4.2) / 1.3));
     },
   });
 }
@@ -316,13 +359,15 @@ function spawnFloorGlow(pos) {
   ring.position.set(pos.x, 0.05, pos.z);
   sceneRef.add(ring);
 
+  let age = 0;
   activeParticles.push({
     mesh: ring,
     lifespan: 3.0,
     age: 0,
     update: (delta) => {
+      age += delta;
       ring.scale.multiplyScalar(1 + delta * 0.5);
-      ringMat.opacity = Math.max(0, 0.8 * (1 - ring.age / 3.0));
+      ringMat.opacity = Math.max(0, 0.8 * (1 - age / 3.0));
     },
   });
 }
@@ -438,13 +483,214 @@ export function spawnChatFloatingEmoji(pos, emoji = '🔥') {
   sprite.scale.set(1.4, 1.4, 1);
   sceneRef.add(sprite);
 
+  let age = 0;
   activeParticles.push({
     mesh: sprite,
     lifespan: 2.5,
     age: 0,
     update: (delta) => {
+      age += delta;
       sprite.position.y += delta * 1.6;
-      mat.opacity = Math.max(0, 1 - (sprite.age || 0) / 2.5);
+      mat.opacity = Math.max(0, 1 - age / 2.5);
+    },
+  });
+}
+
+function spawnStarShower() {
+  if (!sceneRef) return;
+  const count = 90;
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+  const velocities = [];
+  const palette = [[1, 1, 1], [0.6, 0.9, 1], [1, 0.9, 0.6]];
+
+  for (let i = 0; i < count; i++) {
+    positions[i * 3] = (Math.random() - 0.5) * 36;
+    positions[i * 3 + 1] = 16 + Math.random() * 8;
+    positions[i * 3 + 2] = (Math.random() - 0.5) * 36;
+    const c = palette[Math.floor(Math.random() * palette.length)];
+    colors[i * 3] = c[0];
+    colors[i * 3 + 1] = c[1];
+    colors[i * 3 + 2] = c[2];
+    velocities.push({ vx: (Math.random() - 0.5) * 1.2, vy: -5 - Math.random() * 4, vz: (Math.random() - 0.5) * 1.2 });
+  }
+
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const mat = new THREE.PointsMaterial({
+    size: 0.3,
+    vertexColors: true,
+    map: glowDotTexture(),
+    transparent: true,
+    opacity: 1.0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const p = new THREE.Points(geo, mat);
+  sceneRef.add(p);
+
+  let age = 0;
+  activeParticles.push({
+    points: p,
+    velocities,
+    lifespan: 3.0,
+    age: 0,
+    update: (delta) => {
+      age += delta;
+      const posAttr = p.geometry.attributes.position;
+      for (let i = 0; i < count; i++) {
+        posAttr.array[i * 3] += velocities[i].vx * delta;
+        posAttr.array[i * 3 + 1] += velocities[i].vy * delta;
+        posAttr.array[i * 3 + 2] += velocities[i].vz * delta;
+      }
+      posAttr.needsUpdate = true;
+      mat.opacity = Math.max(0, 1 - age / 3.0);
+    },
+  });
+}
+
+function spawnGlitterBomb(pos) {
+  if (!sceneRef) return;
+  const count = 140;
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+  const velocities = [];
+  const palette = [[1, 0.84, 0], [1, 1, 1], [0.6, 0.9, 1], [1, 0.4, 0.8]];
+
+  for (let i = 0; i < count; i++) {
+    positions[i * 3] = pos.x;
+    positions[i * 3 + 1] = pos.y + 1.4;
+    positions[i * 3 + 2] = pos.z;
+    const c = palette[Math.floor(Math.random() * palette.length)];
+    colors[i * 3] = c[0];
+    colors[i * 3 + 1] = c[1];
+    colors[i * 3 + 2] = c[2];
+    const ang = Math.random() * Math.PI * 2;
+    const speed = 3 + Math.random() * 4;
+    velocities.push({ vx: Math.cos(ang) * speed, vy: 3 + Math.random() * 4, vz: Math.sin(ang) * speed });
+  }
+
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const mat = new THREE.PointsMaterial({
+    size: 0.22,
+    vertexColors: true,
+    map: glowDotTexture(),
+    transparent: true,
+    opacity: 1.0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const p = new THREE.Points(geo, mat);
+  sceneRef.add(p);
+
+  let age = 0;
+  activeParticles.push({
+    points: p,
+    velocities,
+    lifespan: 2.5,
+    age: 0,
+    update: (delta) => {
+      age += delta;
+      const posAttr = p.geometry.attributes.position;
+      for (let i = 0; i < count; i++) {
+        velocities[i].vy -= delta * 4; // trọng lực kéo hạt rơi xuống
+        posAttr.array[i * 3] += velocities[i].vx * delta;
+        posAttr.array[i * 3 + 1] += velocities[i].vy * delta;
+        posAttr.array[i * 3 + 2] += velocities[i].vz * delta;
+        if (posAttr.array[i * 3 + 1] < 0) posAttr.array[i * 3 + 1] = 0;
+      }
+      posAttr.needsUpdate = true;
+      mat.opacity = Math.max(0, 1 - age / 2.5);
+    },
+  });
+}
+
+function spawnFireRing() {
+  if (!sceneRef) return;
+  const count = 100;
+  const radius = 6;
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+  const angles = [];
+
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * Math.PI * 2;
+    angles.push(a);
+    positions[i * 3] = Math.cos(a) * radius;
+    positions[i * 3 + 1] = 0.1 + Math.random() * 0.3;
+    positions[i * 3 + 2] = Math.sin(a) * radius;
+    const heat = Math.random();
+    colors[i * 3] = 1;
+    colors[i * 3 + 1] = 0.3 + heat * 0.5;
+    colors[i * 3 + 2] = heat * 0.1;
+  }
+
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const mat = new THREE.PointsMaterial({
+    size: 0.4,
+    vertexColors: true,
+    map: glowDotTexture(),
+    transparent: true,
+    opacity: 1.0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const p = new THREE.Points(geo, mat);
+  sceneRef.add(p);
+
+  let age = 0;
+  activeParticles.push({
+    points: p,
+    lifespan: 5.0,
+    age: 0,
+    update: (delta) => {
+      age += delta;
+      const posAttr = p.geometry.attributes.position;
+      for (let i = 0; i < count; i++) {
+        angles[i] += delta * 0.6;
+        const flicker = radius + Math.sin(age * 6 + i) * 0.25;
+        posAttr.array[i * 3] = Math.cos(angles[i]) * flicker;
+        posAttr.array[i * 3 + 1] = 0.1 + Math.abs(Math.sin(age * 8 + i)) * 0.6;
+        posAttr.array[i * 3 + 2] = Math.sin(angles[i]) * flicker;
+      }
+      posAttr.needsUpdate = true;
+      mat.opacity = Math.max(0, 1 - Math.max(0, (age - 3.5) / 1.5));
+    },
+  });
+}
+
+function spawnLaserFrenzy() {
+  if (!sceneRef) return;
+  const colors = [0x00ffcc, 0xff0055, 0x9900ff, 0x00ff00, 0xffee00];
+  const group = new THREE.Group();
+  const beams = [];
+  for (let i = 0; i < 6; i++) {
+    const geo = new THREE.CylinderGeometry(0.03, 0.1, 40, 6);
+    const mat = new THREE.MeshBasicMaterial({ color: colors[i % colors.length], transparent: true, opacity: 0.85 });
+    const beam = new THREE.Mesh(geo, mat);
+    beam.position.set((Math.random() - 0.5) * 6, 13, -10);
+    beam.rotation.x = Math.PI / 3;
+    group.add(beam);
+    beams.push({ beam, mat, speed: 1.5 + Math.random() * 2, axis: Math.random() > 0.5 ? 'z' : 'y' });
+  }
+  sceneRef.add(group);
+
+  let age = 0;
+  activeParticles.push({
+    mesh: group,
+    lifespan: 6.0,
+    age: 0,
+    update: (delta) => {
+      age += delta;
+      for (const b of beams) {
+        b.beam.rotation[b.axis] += delta * b.speed;
+        if (age > 4.5) b.mat.opacity = Math.max(0, 0.85 * (1 - (age - 4.5) / 1.5));
+      }
     },
   });
 }
@@ -465,7 +711,9 @@ export function updateEffects(delta) {
       }
       if (item.mesh) {
         sceneRef.remove(item.mesh);
-        if (item.mesh.geometry) item.mesh.geometry.dispose();
+        item.mesh.traverse((obj) => {
+          if (obj.geometry) obj.geometry.dispose();
+        });
       }
       activeParticles.splice(i, 1);
     }
