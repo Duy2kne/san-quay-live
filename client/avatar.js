@@ -1,128 +1,7 @@
 import * as THREE from 'three';
 import { getUnlockedPerks, getLevelTier } from './levels.js';
 import { playImpact } from './sfx.js';
-
-// Color Palettes
-const MALE_PALETTES = [
-  { hair: 0x1e1b4b, shirt: 0x3b82f6, pants: 0x0f172a, shoes: 0xffffff },
-  { hair: 0x334155, shirt: 0x10b981, pants: 0x1e293b, shoes: 0x000000 },
-  { hair: 0xf59e0b, shirt: 0xef4444, pants: 0x334155, shoes: 0xffffff },
-  { hair: 0x0f172a, shirt: 0x8b5cf6, pants: 0x111827, shoes: 0xd946ef },
-  { hair: 0x64748b, shirt: 0x06b6d4, pants: 0x1e1b4b, shoes: 0xffffff },
-  { hair: 0x78350f, shirt: 0xf97316, pants: 0x374151, shoes: 0xf59e0b },
-  { hair: 0x111827, shirt: 0xffd700, pants: 0x020617, shoes: 0xffffff },
-  { hair: 0x06b6d4, shirt: 0xec4899, pants: 0x090518, shoes: 0x00ffff },
-];
-
-const FEMALE_PALETTES = [
-  { hair: 0xf43f5e, shirt: 0xfbcfe8, pants: 0xec4899, shoes: 0xffffff },
-  { hair: 0xa855f7, shirt: 0xe0e7ff, pants: 0x8b5cf6, shoes: 0x000000 },
-  { hair: 0xf59e0b, shirt: 0xfef08a, pants: 0xf97316, shoes: 0xffffff },
-  { hair: 0x06b6d4, shirt: 0xcffafe, pants: 0x0284c7, shoes: 0xffffff },
-  { hair: 0x1e1b4b, shirt: 0xffe4e6, pants: 0xf43f5e, shoes: 0x000000 },
-  { hair: 0x84cc16, shirt: 0xdcfce7, pants: 0x15803d, shoes: 0xffffff },
-  { hair: 0xd946ef, shirt: 0xfae8ff, pants: 0xa21caf, shoes: 0xffd700 },
-  { hair: 0xffffff, shirt: 0xffffff, pants: 0xd946ef, shoes: 0x06b6d4 },
-];
-
-// Procedural Natural Chibi Face Textures (Male & Female with cute anime eyes, blushes, smiles)
-function createChibiFaceCanvas(isFemale = false) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 256;
-  const ctx = canvas.getContext('2d');
-
-  // Base Skin
-  ctx.fillStyle = '#ffe0bd';
-  ctx.fillRect(0, 0, 256, 256);
-
-  // Soft Rosy Cheeks Blush
-  ctx.fillStyle = isFemale ? 'rgba(255, 105, 180, 0.45)' : 'rgba(255, 120, 120, 0.35)';
-  ctx.beginPath();
-  ctx.arc(60, 160, 24, 0, Math.PI * 2);
-  ctx.arc(196, 160, 24, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Anime Eyes
-  const eyeColor = isFemale ? '#7c3aed' : '#2563eb';
-
-  // Left Eye
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.ellipse(75, 115, 26, 36, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = eyeColor;
-  ctx.beginPath();
-  ctx.ellipse(78, 118, 18, 26, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Eye pupil
-  ctx.fillStyle = '#0f172a';
-  ctx.beginPath();
-  ctx.ellipse(79, 122, 10, 14, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Eye Highlights (Sparkles)
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.arc(72, 105, 7, 0, Math.PI * 2);
-  ctx.arc(84, 128, 4, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Right Eye
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.ellipse(181, 115, 26, 36, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = eyeColor;
-  ctx.beginPath();
-  ctx.ellipse(178, 118, 18, 26, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = '#0f172a';
-  ctx.beginPath();
-  ctx.ellipse(177, 122, 10, 14, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.arc(172, 105, 7, 0, Math.PI * 2);
-  ctx.arc(184, 128, 4, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Eyelashes (Female extra thick)
-  ctx.strokeStyle = '#1e1b4b';
-  ctx.lineWidth = isFemale ? 5 : 3.5;
-  ctx.beginPath();
-  ctx.arc(75, 96, 26, Math.PI * 1.1, Math.PI * 1.9);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.arc(181, 96, 26, Math.PI * 1.1, Math.PI * 1.9);
-  ctx.stroke();
-
-  // Eyebrows
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = '#475569';
-  ctx.beginPath();
-  ctx.arc(75, 76, 18, Math.PI * 1.2, Math.PI * 1.8);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.arc(181, 76, 18, Math.PI * 1.2, Math.PI * 1.8);
-  ctx.stroke();
-
-  // Cute Smile Mouth
-  ctx.strokeStyle = '#b91c1c';
-  ctx.lineWidth = 3.5;
-  ctx.beginPath();
-  ctx.arc(128, 168, 16, Math.PI * 0.15, Math.PI * 0.85);
-  ctx.stroke();
-
-  return canvas;
-}
+import { buildCharacter, lookFor, dancePose, applyPose, setExpression, DANCE_MOVES } from './character.js';
 
 export class AvatarManager {
   constructor(scene) {
@@ -135,6 +14,8 @@ export class AvatarManager {
   initSharedGeometries() {
     return {
       head: new THREE.SphereGeometry(0.42, 16, 16),
+      // Miếng mặt cong nằm ngoài lớp tóc một chút, hướng +Z (về phía camera), để tóc không che mắt
+      facePatch: new THREE.SphereGeometry(0.463, 20, 14, Math.PI / 2 - 0.95, 1.9, 1.0, 1.25),
       maleBody: new THREE.CapsuleGeometry(0.25, 0.48, 8, 12),
       femaleBody: new THREE.CapsuleGeometry(0.22, 0.45, 8, 12),
       limb: new THREE.CapsuleGeometry(0.08, 0.32, 6, 8),
@@ -142,20 +23,13 @@ export class AvatarManager {
       ring: new THREE.RingGeometry(0.4, 0.55, 24),
       crown: new THREE.ConeGeometry(0.2, 0.3, 5),
       wing: new THREE.PlaneGeometry(0.6, 0.4),
-      parachute: new THREE.SphereGeometry(1.2, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+      parachute: new THREE.SphereGeometry(0.75, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2.4),
       skirt: new THREE.ConeGeometry(0.38, 0.35, 12, 1, true),
     };
   }
 
   initSharedMaterials() {
-    const maleFaceTex = new THREE.CanvasTexture(createChibiFaceCanvas(false));
-    maleFaceTex.colorSpace = THREE.SRGBColorSpace;
-    const femaleFaceTex = new THREE.CanvasTexture(createChibiFaceCanvas(true));
-    femaleFaceTex.colorSpace = THREE.SRGBColorSpace;
-
     return {
-      maleFace: new THREE.MeshStandardMaterial({ map: maleFaceTex, roughness: 0.5 }),
-      femaleFace: new THREE.MeshStandardMaterial({ map: femaleFaceTex, roughness: 0.5 }),
       skin: new THREE.MeshStandardMaterial({ color: 0xffe0bd, roughness: 0.5 }),
       gold: new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.9, roughness: 0.2, emissive: 0xffa500, emissiveIntensity: 0.4 }),
       silver: new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.9, roughness: 0.2 }),
@@ -165,6 +39,47 @@ export class AvatarManager {
     };
   }
 
+  // Lưới chỗ đứng trên sàn nhảy (trước sân khấu): x -12..12, z -6..13, mỗi ô 1.5m
+  getSlots() {
+    if (!this.slots) {
+      this.slots = [];
+      for (let z = -6; z <= 13; z += 1.5) {
+        for (let x = -12; x <= 12; x += 1.5) this.slots.push({ x, z, owner: null });
+      }
+      this.slotOwner = new Map();
+    }
+    return this.slots;
+  }
+
+  allocSlot(userId) {
+    const slots = this.getSlots();
+    if (this.slotOwner.has(userId)) return slots[this.slotOwner.get(userId)];
+    let h = 0;
+    for (const ch of String(userId)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    const start = h % slots.length;
+    // ưu tiên ô theo mã người dùng; bận thì lấy ô trống gần nhất (ưu tiên gần trung tâm sàn)
+    let best = -1;
+    let bestScore = Infinity;
+    for (let i = 0; i < slots.length; i++) {
+      if (slots[i].owner) continue;
+      const d = Math.abs(i - start);
+      const center = Math.hypot(slots[i].x, slots[i].z - 3) * 0.6;
+      const score = (i === start ? 0 : 6 + Math.min(d, 40) * 0.05) + center;
+      if (score < bestScore) { bestScore = score; best = i; }
+    }
+    if (best < 0) best = start; // sàn đầy: đứng chung ô
+    slots[best].owner = userId;
+    this.slotOwner.set(userId, best);
+    return slots[best];
+  }
+
+  freeSlot(userId) {
+    if (!this.slotOwner || !this.slotOwner.has(userId)) return;
+    const i = this.slotOwner.get(userId);
+    if (this.slots[i].owner === userId) this.slots[i].owner = null;
+    this.slotOwner.delete(userId);
+  }
+
   addAvatar(data, isJoin = false) {
     if (this.avatars.has(data.userId)) {
       const existing = this.avatars.get(data.userId);
@@ -172,7 +87,10 @@ export class AvatarManager {
       return existing;
     }
 
-    const av = new AvatarInstance(this.scene, data, this.sharedGeos, this.sharedMats, isJoin);
+    const slot = this.allocSlot(String(data.userId));
+    const jitter = (n) => ((n * 9301 + 49297) % 233280) / 233280 - 0.5;
+    const seedNum = Number(data.seed) || String(data.userId).length * 977;
+    const av = new AvatarInstance(this.scene, { ...data, _home: { x: slot.x + jitter(seedNum) * 0.6, z: slot.z + jitter(seedNum + 7) * 0.6 } }, this.sharedGeos, this.sharedMats, isJoin);
     this.avatars.set(data.userId, av);
     return av;
   }
@@ -183,6 +101,7 @@ export class AvatarManager {
       av.dispose();
       this.avatars.delete(userId);
     }
+    this.freeSlot(String(userId));
   }
 
   getAvatar(userId) {
@@ -194,6 +113,8 @@ export class AvatarManager {
       av.dispose();
     }
     this.avatars.clear();
+    this.slots = null;
+    this.slotOwner = null;
   }
 
   onBeat(beatInfo) {
@@ -223,7 +144,6 @@ export class AvatarInstance {
     this.level = data.level || 0;
     this.rank = data.rank || null;
 
-    this.palette = this.getPalette();
     this.perks = getUnlockedPerks(this.level);
 
     this.group = new THREE.Group();
@@ -241,6 +161,7 @@ export class AvatarInstance {
 
     this.chatBubbleTimer = 0;
     this.comboCounter = 0;
+    this.lastActive = performance.now();
     this.avatarImgElement = null;
 
     // Preload TikTok avatar image for nametag
@@ -254,10 +175,14 @@ export class AvatarInstance {
     scene.add(this.group);
   }
 
-  getPalette() {
-    const list = this.gender === 'female' ? FEMALE_PALETTES : MALE_PALETTES;
-    const idx = (this.data.outfitSeed || 0) % list.length;
-    return list[idx];
+  // Ngoại hình (trang phục, tóc, màu da) cố định theo mã người dùng + giới tính
+  getLook() {
+    let seed = Number(this.data.outfitSeed);
+    if (!Number.isFinite(seed) || seed === 0) {
+      seed = 0;
+      for (const ch of this.userId) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+    }
+    return lookFor(this.gender, seed, this.level);
   }
 
   calcSpawnPosition() {
@@ -273,10 +198,9 @@ export class AvatarInstance {
       return new THREE.Vector3(-6.2, 1.45, -9);
     }
 
-    const seed = (this.data.seed || Math.floor(Math.random() * 1000));
-    const angle = (seed % 100) / 100 * Math.PI * 2;
-    const radius = 2.5 + (seed % 80) / 10;
-    return new THREE.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
+    const home = this.data._home || { x: (Math.random() - 0.5) * 20, z: Math.random() * 16 - 5 };
+    this.home = new THREE.Vector3(home.x, 0, home.z);
+    return this.home.clone();
   }
 
   preloadAvatarImage() {
@@ -299,142 +223,18 @@ export class AvatarInstance {
     this.characterRoot = new THREE.Group();
     this.group.add(this.characterRoot);
 
-    const isFemale = this.gender === 'female';
-    const bodyGeo = isFemale ? this.geos.femaleBody : this.geos.maleBody;
+    this.rig = buildCharacter(this.getLook());
+    this.characterRoot.add(this.rig.root);
+    this.bodyMesh = this.rig.bodyMesh;
+    this.headGroup = this.rig.head;
+    this.leftArm = this.rig.lArm;
+    this.rightArm = this.rig.rArm;
+    this.leftLeg = this.rig.lLeg;
+    this.rightLeg = this.rig.rLeg;
+    this.blinkTimer = 2 + Math.random() * 3;
+    this.beatPulse = 0;
 
-    // 1. Torso
-    this.bodyMat = new THREE.MeshStandardMaterial({
-      color: this.palette.shirt,
-      roughness: 0.4,
-      metalness: this.perks.hasGlitterOutfit ? 0.6 : 0.1,
-    });
-    this.bodyMesh = new THREE.Mesh(bodyGeo, this.bodyMat);
-    this.bodyMesh.position.y = 0.55;
-    this.characterRoot.add(this.bodyMesh);
-
-    // Female Skirt (if female outfit)
-    if (isFemale && (this.data.outfitSeed % 2 === 0)) {
-      const skirtMat = new THREE.MeshStandardMaterial({ color: this.palette.pants, roughness: 0.5 });
-      const skirt = new THREE.Mesh(this.geos.skirt, skirtMat);
-      skirt.position.y = 0.42;
-      this.characterRoot.add(skirt);
-    }
-
-    // 2. Head with Natural Chibi Face (Anime eyes, blushing cheeks - NO avatar pasted)
-    this.headGroup = new THREE.Group();
-    this.headGroup.position.y = 1.15;
-    this.characterRoot.add(this.headGroup);
-
-    const faceMat = isFemale ? this.mats.femaleFace : this.mats.maleFace;
-    this.headMesh = new THREE.Mesh(this.geos.head, faceMat);
-    this.headGroup.add(this.headMesh);
-
-    // 3. Hair Styles (8 Male & 8 Female Styles)
-    this.buildHair(isFemale);
-
-    // 4. Limbs
-    this.leftArm = this.createLimb(-0.35, 0.68, 0, this.palette.shirt);
-    this.rightArm = this.createLimb(0.35, 0.68, 0, this.palette.shirt);
-    this.leftLeg = this.createLimb(-0.16, 0.24, 0, this.palette.pants);
-    this.rightLeg = this.createLimb(0.16, 0.24, 0, this.palette.pants);
-
-    this.characterRoot.add(this.leftArm);
-    this.characterRoot.add(this.rightArm);
-    this.characterRoot.add(this.leftLeg);
-    this.characterRoot.add(this.rightLeg);
-
-    // 5. Level perks attachments
     this.buildPerkAttachments();
-  }
-
-  buildHair(isFemale) {
-    const hairColor = this.palette.hair;
-    const hairMat = new THREE.MeshStandardMaterial({ color: hairColor, roughness: 0.6 });
-    const style = (this.data.outfitSeed || 0) % 8;
-
-    if (!isFemale) {
-      // Male Hair Styles
-      switch (style) {
-        case 0: { // Short messy
-          const hair = new THREE.Mesh(new THREE.SphereGeometry(0.44, 14, 12, 0, Math.PI * 2, 0, Math.PI / 1.8), hairMat);
-          hair.position.y = 0.05;
-          this.headGroup.add(hair);
-          break;
-        }
-        case 1: { // Spiky hair
-          const hair = new THREE.Mesh(new THREE.ConeGeometry(0.45, 0.5, 7), hairMat);
-          hair.position.set(0, 0.4, 0);
-          this.headGroup.add(hair);
-          break;
-        }
-        case 2: { // Baseball cap
-          const cap = new THREE.Mesh(new THREE.SphereGeometry(0.45, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: this.palette.shirt }));
-          cap.position.y = 0.08;
-          const visor = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.04, 0.35), new THREE.MeshStandardMaterial({ color: this.palette.shirt }));
-          visor.position.set(0, 0.06, -0.45);
-          this.headGroup.add(cap);
-          this.headGroup.add(visor);
-          break;
-        }
-        default: { // Modern side part / slicked
-          const hair = new THREE.Mesh(new THREE.SphereGeometry(0.44, 12, 12, 0, Math.PI * 2, 0, Math.PI / 1.9), hairMat);
-          hair.position.y = 0.06;
-          this.headGroup.add(hair);
-        }
-      }
-    } else {
-      // Female Hair Styles
-      switch (style) {
-        case 0: { // Long straight hair
-          const top = new THREE.Mesh(new THREE.SphereGeometry(0.44, 14, 12, 0, Math.PI * 2, 0, Math.PI / 2), hairMat);
-          top.position.y = 0.05;
-          const back = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.8, 0.15), hairMat);
-          back.position.set(0, -0.2, -0.38);
-          this.headGroup.add(top);
-          this.headGroup.add(back);
-          break;
-        }
-        case 1: { // Twin tails
-          const top = new THREE.Mesh(new THREE.SphereGeometry(0.44, 14, 12, 0, Math.PI * 2, 0, Math.PI / 2), hairMat);
-          top.position.y = 0.05;
-          const tailL = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.16, 0.7, 8), hairMat);
-          tailL.position.set(-0.45, -0.15, -0.1);
-          tailL.rotation.z = 0.3;
-          const tailR = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.16, 0.7, 8), hairMat);
-          tailR.position.set(0.45, -0.15, -0.1);
-          tailR.rotation.z = -0.3;
-          this.headGroup.add(top);
-          this.headGroup.add(tailL);
-          this.headGroup.add(tailR);
-          break;
-        }
-        case 2: { // High ponytail
-          const top = new THREE.Mesh(new THREE.SphereGeometry(0.44, 14, 12, 0, Math.PI * 2, 0, Math.PI / 2), hairMat);
-          top.position.y = 0.05;
-          const pony = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.8, 8), hairMat);
-          pony.position.set(0, 0.25, -0.45);
-          pony.rotation.x = -Math.PI / 3;
-          this.headGroup.add(top);
-          this.headGroup.add(pony);
-          break;
-        }
-        case 3: // Bob cut
-        default: {
-          const hair = new THREE.Mesh(new THREE.SphereGeometry(0.46, 14, 14, 0, Math.PI * 2, 0, Math.PI / 1.7), hairMat);
-          hair.position.y = 0.06;
-          this.headGroup.add(hair);
-        }
-      }
-    }
-  }
-
-  createLimb(x, y, z, color) {
-    const limbGroup = new THREE.Group();
-    limbGroup.position.set(x, y, z);
-    const limbMesh = new THREE.Mesh(this.geos.limb, new THREE.MeshStandardMaterial({ color }));
-    limbMesh.position.y = -0.16;
-    limbGroup.add(limbMesh);
-    return limbGroup;
   }
 
   buildPerkAttachments() {
@@ -455,12 +255,12 @@ export class AvatarInstance {
       const scale = this.perks.hasMajesticWings ? 2.2 : 1.2;
 
       const leftWing = new THREE.Mesh(this.geos.wing, wingMat);
-      leftWing.position.set(-0.4, 0.65, -0.2);
+      leftWing.position.set(-0.22, 0.85, -0.2);
       leftWing.rotation.y = -Math.PI / 4;
       leftWing.scale.set(scale, scale, scale);
 
       const rightWing = new THREE.Mesh(this.geos.wing, wingMat);
-      rightWing.position.set(0.4, 0.65, -0.2);
+      rightWing.position.set(0.22, 0.85, -0.2);
       rightWing.rotation.y = Math.PI / 4;
       rightWing.scale.set(scale, scale, scale);
 
@@ -472,14 +272,15 @@ export class AvatarInstance {
     if (this.perks.hasMiniCrown || (this.rank && this.rank <= 3)) {
       const crownMat = (this.rank === 1) ? this.mats.gold : (this.rank === 2) ? this.mats.silver : this.mats.bronze;
       const crown = new THREE.Mesh(this.geos.crown, crownMat);
-      crown.position.set(0, 0.55, 0);
+      crown.position.set(0, 0.72, -0.02);
+      crown.scale.setScalar(0.8);
       this.headGroup.add(crown);
     }
 
     if (this.isFalling && this.perks.hasParachuteDrop) {
-      const paraMat = new THREE.MeshStandardMaterial({ color: 0xec4899, side: THREE.DoubleSide });
+      const paraMat = new THREE.MeshStandardMaterial({ color: 0xec4899, side: THREE.DoubleSide, transparent: true, opacity: 0.85 });
       this.parachuteMesh = new THREE.Mesh(this.geos.parachute, paraMat);
-      this.parachuteMesh.position.y = 2.4;
+      this.parachuteMesh.position.y = 2.35;
       this.characterRoot.add(this.parachuteMesh);
     }
   }
@@ -500,8 +301,8 @@ export class AvatarInstance {
       depthTest: false,
     });
     this.tagSprite = new THREE.Sprite(spriteMat);
-    this.tagSprite.position.set(0, 2.3, 0);
-    this.tagSprite.scale.set(2.8, 1.4, 1);
+    this.tagSprite.position.set(0, 2.15, 0);
+    this.tagSprite.scale.set(2.3, 1.15, 1);
     this.characterRoot.add(this.tagSprite);
   }
 
@@ -642,7 +443,6 @@ export class AvatarInstance {
   switchGender(newGender) {
     if (this.gender === newGender) return;
     this.gender = newGender;
-    this.palette = this.getPalette();
 
     // Trigger 0.6s spin and smoke puff
     let spinElapsed = 0;
@@ -662,11 +462,13 @@ export class AvatarInstance {
   }
 
   showChat(text) {
+    this.lastActive = performance.now();
     this.chatBubbleTimer = 5;
     this.updateNametagSprite(text, this.comboCounter);
   }
 
   setCombo(combo) {
+    this.lastActive = performance.now();
     this.comboCounter = combo;
     this.updateNametagSprite(null, combo);
   }
@@ -678,25 +480,26 @@ export class AvatarInstance {
       this.switchGender(newData.gender);
     }
     if (typeof newData.level === 'number' && newData.level !== this.level) {
+      const wasGlitter = this.level >= 30;
       this.level = newData.level;
       this.perks = getUnlockedPerks(this.level);
+      if (wasGlitter !== this.level >= 30 && !this.isFalling) this.buildCharacterHierarchy();
     }
     if (typeof newData.rank === 'number') this.rank = newData.rank;
     this.updateNametagSprite();
   }
 
   setDance(danceMove, durationSec = 6) {
+    this.lastActive = performance.now();
     this.currentDance = danceMove;
     this.danceTimer = durationSec;
   }
 
   onBeat({ beatNum }) {
-    if (!this.isFalling) {
-      this.characterRoot.position.y = 0.12;
-    }
-    if (this.danceTimer <= 0 && beatNum % 16 === 0) {
-      const moves = ['bounce', 'hip_shake', 'clap', 'wave', 'shuffle', 'floss'];
-      this.currentDance = moves[Math.floor(Math.random() * moves.length)];
+    if (!this.isFalling) this.beatPulse = 1;
+    // mỗi 16 phách tự đổi điệu (lệch nhau theo người để sàn không nhảy y hệt nhau)
+    if (this.danceTimer <= 0 && (beatNum + (this.userId.length % 4) * 4) % 16 === 0) {
+      this.currentDance = DANCE_MOVES[Math.floor(Math.random() * DANCE_MOVES.length)];
     }
   }
 
@@ -706,6 +509,7 @@ export class AvatarInstance {
       const speed = this.perks.hasParachuteDrop ? 6 : 12;
       this.group.position.y -= speed * delta;
       this.group.rotation.y += delta * 2;
+      if (this.rig) applyPose(this.rig, dancePose('falling', timeSec * 6), delta, 8);
 
       if (this.group.position.y <= 0) {
         this.group.position.y = 0;
@@ -718,10 +522,7 @@ export class AvatarInstance {
           this.parachuteMesh = null;
         }
 
-        this.characterRoot.scale.set(1.2, 0.7, 1.2);
-        setTimeout(() => {
-          this.characterRoot.scale.set(1, 1, 1);
-        }, 200);
+        this.landTimer = 0.45;
       }
       return;
     }
@@ -737,7 +538,6 @@ export class AvatarInstance {
       this.danceTimer -= delta;
     }
 
-    this.characterRoot.position.y = THREE.MathUtils.lerp(this.characterRoot.position.y, 0, 0.15);
     this.applyDanceKeyframes(delta, timeSec);
 
     // Wandering (unless on Podium or Stage)
@@ -746,11 +546,19 @@ export class AvatarInstance {
       if (this.wanderTimer <= 0) {
         this.wanderTimer = Math.random() * 12 + 6;
         const wanderAngle = Math.random() * Math.PI * 2;
-        const wanderDist = Math.random() * 5 + 1;
-        this.targetPos.set(Math.cos(wanderAngle) * wanderDist, 0, Math.sin(wanderAngle) * wanderDist);
+        const wanderDist = Math.random() * 0.7;
+        const home = this.home || this.targetPos;
+        this.targetPos.set(home.x + Math.cos(wanderAngle) * wanderDist, 0, home.z + Math.sin(wanderAngle) * wanderDist);
       }
       this.group.position.x = THREE.MathUtils.lerp(this.group.position.x, this.targetPos.x, 0.02);
       this.group.position.z = THREE.MathUtils.lerp(this.group.position.z, this.targetPos.z, 0.02);
+    }
+
+    if (this.tagSprite) {
+      const crowd = Array.isArray(arguments[2]) ? arguments[2].length : 0;
+      const recent = performance.now() - (this.lastActive || 0) < 25000;
+      const important = (this.rank && this.rank <= 5) || this.level >= 10 || this.chatBubbleTimer > 0 || this.comboCounter > 0;
+      this.tagSprite.visible = crowd <= 30 || important || recent;
     }
 
     if (this.wings) {
@@ -761,68 +569,34 @@ export class AvatarInstance {
   }
 
   applyDanceKeyframes(delta, timeSec) {
-    const t = timeSec * 6 + this.dancePhase;
-    switch (this.currentDance) {
-      case 'bounce':
-        this.leftArm.rotation.z = Math.sin(t) * 0.4 - 0.4;
-        this.rightArm.rotation.z = -Math.sin(t) * 0.4 + 0.4;
-        this.bodyMesh.rotation.y = Math.sin(t * 0.5) * 0.2;
-        break;
-      case 'wave':
-        this.rightArm.rotation.z = Math.PI * 0.8 + Math.sin(t * 2) * 0.4;
-        this.leftArm.rotation.z = -0.3;
-        break;
-      case 'cheers':
-        this.rightArm.rotation.x = -Math.PI * 0.6;
-        this.rightArm.rotation.z = Math.sin(t * 1.5) * 0.2;
-        this.leftArm.rotation.x = -Math.PI * 0.6;
-        break;
-      case 'clap':
-        this.leftArm.rotation.x = -Math.PI / 3;
-        this.rightArm.rotation.x = -Math.PI / 3;
-        this.leftArm.rotation.y = Math.sin(t * 2) * 0.4;
-        this.rightArm.rotation.y = -Math.sin(t * 2) * 0.4;
-        break;
-      case 'hip_shake':
-        this.bodyMesh.rotation.z = Math.sin(t) * 0.35;
-        this.leftArm.rotation.z = -0.5;
-        this.rightArm.rotation.z = 0.5;
-        break;
-      case 'spin':
-        this.characterRoot.rotation.y += delta * 6;
-        this.leftArm.rotation.z = -0.8;
-        this.rightArm.rotation.z = 0.8;
-        break;
-      case 'moonwalk':
-        this.group.position.z += Math.sin(t) * 0.02;
-        this.leftLeg.rotation.x = Math.sin(t) * 0.5;
-        this.rightLeg.rotation.x = -Math.sin(t) * 0.5;
-        break;
-      case 'robot':
-        const steppedT = Math.floor(t * 2) / 2;
-        this.leftArm.rotation.x = Math.sin(steppedT) * 0.7;
-        this.rightArm.rotation.x = Math.cos(steppedT) * 0.7;
-        this.headGroup.rotation.y = Math.sin(steppedT) * 0.5;
-        break;
-      case 'hands_up':
-      case 'stage_solo':
-        this.leftArm.rotation.z = -Math.PI * 0.75 + Math.sin(t) * 0.3;
-        this.rightArm.rotation.z = Math.PI * 0.75 - Math.sin(t) * 0.3;
-        this.characterRoot.rotation.y = Math.sin(t * 0.5) * 0.5;
-        break;
-      case 'shuffle':
-      case 'floss':
-        this.leftArm.rotation.x = Math.sin(t) * 0.6;
-        this.rightArm.rotation.x = -Math.sin(t) * 0.6;
-        this.bodyMesh.rotation.y = Math.sin(t) * 0.4;
-        break;
-      case 'headbang':
-        this.headGroup.rotation.x = Math.sin(t * 1.5) * 0.5;
-        break;
-      default:
-        this.leftArm.rotation.z = Math.sin(t) * 0.3 - 0.3;
-        this.rightArm.rotation.z = -Math.sin(t) * 0.3 + 0.3;
+    if (!this.rig) return;
+    const t = timeSec * 4.2 + this.dancePhase;
+    let move = this.currentDance || 'bounce';
+    if (this.landTimer > 0) {
+      this.landTimer -= delta;
+      move = 'land';
     }
+    const pose = dancePose(move, t);
+    // nhún theo phách nhạc
+    this.beatPulse = Math.max(0, (this.beatPulse || 0) - delta * 5);
+    pose.bob += this.beatPulse * 0.045;
+    pose.lk += this.beatPulse * 0.12;
+    pose.rk += this.beatPulse * 0.12;
+
+    if (move === 'spin') this.rig.spin += delta * 7;
+    else this.rig.spin *= Math.max(0, 1 - delta * 6);
+    if (move === 'moonwalk' && !this.isStage && !this.isPodium) this.group.position.z += Math.sin(t) * delta * 0.4;
+
+    applyPose(this.rig, pose, delta, move === 'robot' ? 22 : 12);
+
+    // biểu cảm: đang nhảy thì cười tươi, thỉnh thoảng chớp mắt
+    this.blinkTimer -= delta;
+    let expr = move === 'bounce' || move === 'land' ? 'happy' : 'joy';
+    if (this.blinkTimer < 0) {
+      expr = 'blink';
+      if (this.blinkTimer < -0.12) this.blinkTimer = 2.5 + Math.random() * 3;
+    }
+    setExpression(this.rig, expr);
   }
 
   dispose() {
