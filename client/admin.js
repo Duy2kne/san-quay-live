@@ -245,27 +245,37 @@ function initActions() {
   const btnPlayMusicNow = document.getElementById('btn-play-music-now');
   const inputMusic = document.getElementById('input-youtube-url');
 
+  // Tách nhiều link (mỗi dòng / cách nhau bởi khoảng trắng)
+  const splitLinks = (text) => text.split(/[\s,]+/).map(x => x.trim()).filter(x => /youtu/i.test(x));
+
   if (btnAddMusic) {
     btnAddMusic.addEventListener('click', async () => {
-      const url = inputMusic.value.trim();
-      if (!url) return showAdminToast('Vui lòng dán link YouTube!', true);
-      try {
-        await callAdmin('music_add', { url, playNow: false });
-        inputMusic.value = '';
-        showAdminToast('Đã thêm bài hát vào hàng chờ');
-        loadDashboard();
-      } catch (err) { showAdminToast(err.message, true); }
+      const links = splitLinks(inputMusic.value);
+      if (!links.length) return showAdminToast('Vui lòng dán link YouTube!', true);
+      let ok = 0;
+      const failed = [];
+      for (const url of links) {
+        try {
+          await callAdmin('music_add', { url, playNow: false });
+          ok++;
+        } catch (err) { failed.push(url); }
+      }
+      inputMusic.value = failed.join('\n');
+      showAdminToast(failed.length ? `Đã thêm ${ok} bài, ${failed.length} link lỗi (còn để lại trong ô)` : `Đã thêm ${ok} bài vào hàng chờ`, failed.length > 0);
+      loadDashboard();
     });
   }
 
   if (btnPlayMusicNow) {
     btnPlayMusicNow.addEventListener('click', async () => {
-      const url = inputMusic.value.trim();
-      if (!url) return showAdminToast('Vui lòng dán link YouTube!', true);
+      const links = splitLinks(inputMusic.value);
+      if (!links.length) return showAdminToast('Vui lòng dán link YouTube!', true);
       try {
-        await callAdmin('music_add', { url, playNow: true });
+        // Link đầu phát ngay, các link sau xếp vào hàng chờ
+        await callAdmin('music_add', { url: links[0], playNow: true });
+        for (const url of links.slice(1)) await callAdmin('music_add', { url, playNow: false }).catch(() => {});
         inputMusic.value = '';
-        showAdminToast('Đang phát bài hát ngay!');
+        showAdminToast(links.length > 1 ? `Đang phát bài đầu, ${links.length - 1} bài còn lại đã vào hàng chờ` : 'Đang phát bài hát ngay!');
         loadDashboard();
       } catch (err) { showAdminToast(err.message, true); }
     });
