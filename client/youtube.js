@@ -11,7 +11,7 @@ let syncInterval = null;
 let beatInterval = null;
 let onBeatCallbacks = [];
 let socketRef = null;
-let isAudioMutedByPolicy = false;
+let isAudioMutedByPolicy = true; // true cho đến khi người dùng bấm nút bật âm thanh
 
 export function setSocketForMusic(socket) {
   socketRef = socket;
@@ -53,6 +53,7 @@ function createPlayer(containerId) {
       width: '280',
       playerVars: {
         autoplay: 1,
+        mute: 1, // trình duyệt luôn cho autoplay khi muted; bỏ mute sau khi người dùng bấm nút bật âm thanh
         controls: 1,
         disablekb: 0,
         enablejsapi: 1,
@@ -64,6 +65,9 @@ function createPlayer(containerId) {
       events: {
         onReady: (event) => {
           console.log('[youtube] Player ready');
+          if (!isAudioMutedByPolicy) {
+            try { player.unMute(); } catch (_) {}
+          }
           if (currentTrack) {
             syncWithTrack(currentTrack);
           }
@@ -217,4 +221,18 @@ function startBeatClock() {
 
 export function getCurrentBpm() {
   return currentBpm;
+}
+
+// Gọi sau một thao tác bấm thật của người dùng để gỡ mute & phát nhạc
+// (trình duyệt chặn autoplay có tiếng nếu chưa có tương tác).
+export function unlockYouTubeAudio() {
+  isAudioMutedByPolicy = false;
+  if (!player) return;
+  try {
+    if (typeof player.unMute === 'function') player.unMute();
+    if (typeof player.setVolume === 'function') {
+      player.setVolume(currentTrack && typeof currentTrack.volume === 'number' ? currentTrack.volume : 75);
+    }
+    if (!isPaused && typeof player.playVideo === 'function') player.playVideo();
+  } catch (_) {}
 }
