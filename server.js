@@ -112,7 +112,13 @@ function fetchImage(url, redirects = 2) {
   return new Promise((resolve, reject) => {
     const proxy = env('TIKTOK_PROXY');
     const agent = proxy ? new HttpsProxyAgent({ proxy }) : undefined;
-    const req = https.get(url, { agent, timeout: 6000, headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } }, (r) => {
+    // CDN TikTok chặn hotlink nếu thiếu Referer/Origin trỏ về tiktok.com -> nhiều ảnh đại diện bị 403
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      Referer: 'https://www.tiktok.com/',
+      Origin: 'https://www.tiktok.com',
+    };
+    const req = https.get(url, { agent, timeout: 6000, headers }, (r) => {
       if (r.statusCode >= 300 && r.statusCode < 400 && r.headers.location && redirects > 0) {
         r.resume();
         const next = new URL(r.headers.location, url).toString();
