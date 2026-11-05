@@ -327,6 +327,9 @@ if (process.env.DEMO_ONLY === '1') {
 }
 
 server.listen(PORT, HOST, () => {
+  console.log(env('TIKTOK_SIGN_API_KEY')
+    ? '[tiktok] Đang dùng TIKTOK_SIGN_API_KEY để ký kết nối.'
+    : '[tiktok] CHƯA đặt TIKTOK_SIGN_API_KEY: dùng lượt ký miễn phí theo IP (trên cloud rất dễ hết lượt).');
   console.log(`=======================================================`);
   console.log(`🚀 Sàn Quẩy Live đang chạy tại http://${HOST}:${PORT}`);
   console.log(`   - Giao diện chính: http://localhost:${PORT}`);
