@@ -1,0 +1,59 @@
+{
+  "tiers": [
+    { "min": 1, "max": 4, "effect": "cheers", "extra": "hearts" },
+    { "min": 5, "max": 29, "effect": "bounce", "extra": "confetti" },
+    { "min": 30, "max": 99, "effect": "moonwalk", "extra": "floor_glow" },
+    { "min": 100, "max": 499, "effect": "stage_solo", "extra": "spotlight" },
+    { "min": 500, "max": 999, "effect": "money_rain", "extra": "drone_cam" },
+    { "min": 1000, "max": 9999, "effect": "vip_show", "extra": "fireworks" },
+    { "min": 10000, "max": 9999999, "effect": "dragon_ride", "extra": "golden_banner" }
+  ],
+  "nameOverrides": {
+    "Rose": "cheers",
+    "Hoa hồng": "cheers",
+    "TikTok": "bounce",
+    "Finger Heart": "heart_dance",
+    "Hand Hearts": "heart_dance",
+    "Confetti": "confetti",
+    "Perfume": "spin",
+    "Doughnut": "hip_shake",
+    "Corgi": "robot",
+    "Money Gun": "money_rain",
+    "Galaxy": "vip_show",
+    "Lion": "lion_show",
+    "TikTok Universe": "super_show"
+  },
+  "danceMoves": [
+    "wave",
+    "cheers",
+    "bounce",
+    "clap",
+    "hip_shake",
+    "spin",
+    "robot",
+    "moonwalk",
+    "hands_up",
+    "breakdance",
+    "shuffle",
+    "floss",
+    "heart_dance",
+    "stage_solo"
+  ],
+  "effectsList": [
+    "hearts",
+    "confetti",
+    "fireworks",
+    "rose_rain",
+    "money_rain",
+    "rocket",
+    "drone_cam",
+    "spotlight",
+    "laser_show",
+    "light_dragon",
+    "light_lion",
+    "star_shower",
+    "glitter_bomb",
+    "fire_ring",
+    "vip_show"
+  ]
+}

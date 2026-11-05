@@ -1,0 +1,11 @@
+node_modules/
+public/dist/
+dist/
+build/
+.env
+.env.local
+.env.*.local
+!.env.example
+data/*.json
+*.log
+.DS_Store

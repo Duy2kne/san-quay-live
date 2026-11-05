@@ -1,0 +1,6 @@
+{
+  "name": "Sàn Quẩy Live - TikTok Live 3D Nightclub",
+  "description": "Biến phiên TikTok Live thành sàn nhảy 3D nightclub tương tác thời gian thực: người xem rơi từ trên trời xuống, quẩy theo nhạc YouTube đồng bộ, hiệu ứng donate và thăng cấp rực rỡ.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

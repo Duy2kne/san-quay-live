@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quản trị Sàn Quẩy Live</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    body {
+      overflow-y: auto !important;
+      background: #090514;
+      padding: 20px;
+    }
+    .admin-container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .admin-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      margin-bottom: 20px;
+    }
+    .admin-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+    .nav-tab-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #94a3b8;
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .nav-tab-btn.active {
+      background: var(--neon-purple);
+      color: #fff;
+      border-color: var(--neon-purple);
+      box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);
+    }
+    .tab-panel {
+      display: none;
+      background: rgba(18, 10, 36, 0.95);
+      border: 1px solid var(--bg-card-border);
+      border-radius: 12px;
+      padding: 24px;
+    }
+    .tab-panel.active {
+      display: block;
+    }
+    .form-group {
+      margin-bottom: 18px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #cbd5e1;
+      margin-bottom: 6px;
+    }
+    .form-control {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    .btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 14px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: var(--neon-pink); color: #fff; }
+    .btn-secondary { background: #334155; color: #fff; }
+    .btn-danger { background: #dc2626; color: #fff; }
+    .btn-success { background: #10b981; color: #fff; }
+    .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 4px; border: none; cursor: pointer; background: rgba(255, 255, 255, 0.15); color: #fff; }
+    .btn-sm:hover { background: var(--neon-purple); }
+    .btn-group { display: flex; gap: 10px; flex-wrap: wrap; }
+    table { width: 100%; border-collapse: collapse; margin-top: 14px; }
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid rgba(255, 255, 255, 0.08); font-size: 13px; }
+    th { color: var(--neon-cyan); font-weight: 700; }
+    .text-center { text-align: center; }
+    /* Login Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-card {
+      background: #150c2a;
+      border: 1px solid var(--neon-purple);
+      border-radius: 14px;
+      padding: 32px;
+      width: 380px;
+      box-shadow: 0 0 35px rgba(168, 85, 247, 0.5);
+    }
+    .login-error {
+      color: #ef4444;
+      font-size: 13px;
+      margin-top: 10px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <!-- Toast Notification Container -->
+  <div id="admin-toast-container" style="position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px;"></div>
+
+  <!-- Non-blocking Prompt Modal -->
+  <div id="admin-prompt-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <h3 id="prompt-modal-title" style="margin-bottom: 12px; color: #fff; font-size: 16px;">Xác nhận</h3>
+      <p id="prompt-modal-desc" style="font-size: 13px; color: #94a3b8; margin-bottom: 14px;"></p>
+      <input type="text" id="prompt-modal-input" class="form-control" style="margin-bottom: 16px;" />
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button id="prompt-modal-cancel" class="btn btn-secondary">Huỷ</button>
+        <button id="prompt-modal-ok" class="btn btn-primary">Đồng ý</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login Modal -->
+  <div id="login-modal" class="modal-overlay">
+    <div class="modal-card">
+      <h2 style="margin-bottom: 8px; font-weight: 800; color: #fff;">Quản trị Sàn Quẩy</h2>
+      <p style="font-size: 13px; color: #94a3b8; margin-bottom: 20px;">Vui lòng nhập mật khẩu quản trị viên (ADMIN_PASSWORD):</p>
+      <form id="login-form">
+        <div class="form-group">
+          <input type="password" id="login-password" class="form-control" placeholder="Nhập mật khẩu..." required />
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Đăng Nhập</button>
+        <div id="login-error" class="login-error"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Admin Main Dashboard -->
+  <div id="admin-app" class="admin-container" style="display: none;">
+    <header class="admin-header">
+      <div>
+        <h1 style="font-size: 24px; font-weight: 800; color: #fff;">Quản trị Sàn Quẩy Live 3D</h1>
+        <p style="font-size: 13px; color: #94a3b8;">Bảng điều khiển phiên live TikTok, hiệu ứng quà, âm nhạc và người xem</p>
+      </div>
+      <div>
+        <a href="/" target="_blank" class="btn btn-secondary">Xem Sàn Quẩy →</a>
+      </div>
+    </header>
+
+    <nav class="admin-nav">
+      <button class="nav-tab-btn active" data-tab="live">🔴 Phiên Live</button>
+      <button class="nav-tab-btn" data-tab="comments">💬 Bình luận & Từ khoá</button>
+      <button class="nav-tab-btn" data-tab="gifts">🎁 Quà & Hiệu ứng</button>
+      <button class="nav-tab-btn" data-tab="donors">👥 Người xem & Donate</button>
+      <button class="nav-tab-btn" data-tab="music">🎵 Nhạc YouTube</button>
+      <button class="nav-tab-btn" data-tab="controls">📢 Thông báo & Camera</button>
+      <button class="nav-tab-btn" data-tab="settings">⚙️ Cài đặt</button>
+      <button class="nav-tab-btn" data-tab="audit">📁 Nhật ký & Sao lưu</button>
+    </nav>
+
+    <!-- 1. Tab Phiên Live -->
+    <div id="panel-live" class="tab-panel active">
+      <h2 style="font-size: 18px; margin-bottom: 14px;">Kết nối TikTok Live</h2>
+      <div class="form-group">
+        <label>Link live hoặc Tên kênh TikTok:</label>
+        <input type="text" id="input-channel" class="form-control" placeholder="Ví dụ: https://www.tiktok.com/@tenkenh/live hoặc @tenkenh" />
+      </div>
+      <div class="btn-group">
+        <button id="btn-connect-live" class="btn btn-primary">Kết nối Live</button>
+        <button id="btn-disconnect-live" class="btn btn-danger">Ngắt kết nối</button>
+        <button id="btn-toggle-demo" class="btn btn-success">Bật Demo (Giả lập)</button>
+        <button id="btn-simulate-500" class="btn btn-secondary">👥 Giả lập 500 người vào</button>
+      </div>
+
+      <div style="margin-top: 24px; background: rgba(0,0,0,0.3); padding: 16px; border-radius: 8px;">
+        <h3 style="font-size: 15px; color: var(--neon-cyan);">Trạng thái hiện tại:</h3>
+        <p id="live-status-text" style="font-size: 16px; font-weight: 700; margin-top: 6px;">Chưa kết nối live</p>
+        <p id="live-details-text" style="font-size: 13px; color: #94a3b8; margin-top: 4px;"></p>
+      </div>
+    </div>
+
+    <!-- Tab Bình luận & Từ khoá -->
+    <div id="panel-comments" class="tab-panel">
+      <h2 style="font-size: 18px; margin-bottom: 14px;">Quản lý Bình luận & Đổi Nhân Vật</h2>
+      
+      <div style="background: rgba(0,0,0,0.3); padding: 18px; border-radius: 8px; margin-bottom: 20px;">
+        <h3 style="font-size: 15px; color: var(--neon-cyan); margin-bottom: 12px;">1. Đổi Giới Tính Nhân Vật Bằng Bình Luận</h3>
+        <div style="display: flex; gap: 20px; align-items: center; margin-bottom: 14px;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #fff;">
+            <input type="checkbox" id="check-enable-gender-switch" checked />
+            Bật tính năng đổi nhân vật qua bình luận (cooldown 10s/người)
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #fff;">
+            <input type="checkbox" id="check-show-gender-hint" checked />
+            Hiện dòng chữ chạy gợi ý <em>"💬 Bình luận nam hoặc nữ để đổi nhân vật"</em>
+          </label>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <div class="form-group">
+            <label>Từ khoá đổi Nam (cách nhau bởi dấu phẩy):</label>
+            <input type="text" id="input-keywords-male" class="form-control" value="nam, trai, boy" />
+          </div>
+          <div class="form-group">
+            <label>Từ khoá đổi Nữ (cách nhau bởi dấu phẩy):</label>
+            <input type="text" id="input-keywords-female" class="form-control" value="nu, nữ, gai, gái, girl" />
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 12px; align-items: flex-end; margin-top: 10px;">
+          <div style="flex: 2;">
+            <label style="font-size: 12px; color: #cbd5e1;">Đặt giới tính cho 1 người (User ID hoặc Nickname):</label>
+            <input type="text" id="input-manual-gender-user" class="form-control" placeholder="Nhập userId hoặc nickname..." />
+          </div>
+          <div style="flex: 1;">
+            <label style="font-size: 12px; color: #cbd5e1;">Giới tính:</label>
+            <select id="select-manual-gender" class="form-control">
+              <option value="male">Nam</option>
+              <option value="female">Nữ</option>
+            </select>
+          </div>
+          <button id="btn-set-user-gender" class="btn btn-secondary">Đặt Giới Tính</button>
+        </div>
+      </div>
+
+      <div style="background: rgba(0,0,0,0.3); padding: 18px; border-radius: 8px; margin-bottom: 20px;">
+        <h3 style="font-size: 15px; color: var(--neon-gold); margin-bottom: 12px;">2. Từ khoá Bình luận kích hoạt Hiệu ứng & Điệu nhảy</h3>
+        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">
+          Từ khoá so khớp độc lập không cần xoá dấu tiếng Việt. Cooldown 4 giây/người.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Hiệu ứng</th>
+              <th>Emoji bay</th>
+              <th>Điệu nhảy</th>
+              <th>Từ khoá kích hoạt</th>
+            </tr>
+          </thead>
+          <tbody id="chat-effects-table-body"></tbody>
+        </table>
+
+        <div style="margin-top: 16px; display: flex; gap: 16px; align-items: center;">
+          <label style="font-size: 13px; color: #cbd5e1;">
+            Ngưỡng kích hoạt <strong>"Cả Sàn Quẩy Lên"</strong> (số người bình luận trong 15s):
+          </label>
+          <input type="number" id="input-floor-threshold" style="width: 90px;" class="form-control" value="10" />
+        </div>
+      </div>
+
+      <button id="btn-save-comment-settings" class="btn btn-primary">Lưu Cấu Hình Bình Luận & Từ Khoá</button>
+    </div>
+
+    <!-- 2. Tab Quà & Hiệu ứng -->
+    <div id="panel-gifts" class="tab-panel">
+      <h2 style="font-size: 18px; margin-bottom: 14px;">Bảng Quà & Hiệu ứng 3D</h2>
+      <p style="font-size: 13px; color: #94a3b8; margin-bottom: 16px;">
+        Thử nghiệm các hiệu ứng 3D trực tiếp lên mọi màn hình (kể cả OBS).
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Tên Quà</th>
+            <th>Kim Cương</th>
+            <th>Hiệu ứng Mặc Định</th>
+            <th>Thao Tác</th>
+          </tr>
+        </thead>
+        <tbody id="gift-effects-table"></tbody>
+      </table>
+    </div>
+
+    <!-- 3. Tab Người xem & Donate -->
+    <div id="panel-donors" class="tab-panel">
+      <h2 style="font-size: 18px; margin-bottom: 14px;">Quản lý Người xem & Điểm Donate</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Hạng</th>
+            <th>Người xem</th>
+            <th>Tổng Kim Cương</th>
+            <th>Hôm Nay</th>
+            <th>Tuần Này</th>
+            <th>Thao Tác</th>
+          </tr>
+        </thead>
+        <tbody id="donors-table-body"></tbody>
+      </table>
+    </div>
+
+    <!-- 4. Tab Nhạc YouTube -->
+    <div id="panel-music" class="tab-panel">
+      <h2 style="font-size: 18px; margin-bottom: 14px;">Quản lý Nhạc YouTube Đồng Bộ</h2>
+      <div class="form-group">
+        <label>Dán link bài hát YouTube (watch?v=, youtu.be, shorts, playlist):</label>
+        <input type="text" id="input-youtube-url" class="form-control" placeholder="https://www.youtube.com/watch?v=..." />
+      </div>
+      <div class="btn-group">
+        <button id="btn-add-music" class="btn btn-primary">Thêm vào hàng chờ</button>
+        <button id="btn-play-music-now" class="btn btn-success">Phát ngay</button>
+      </div>
+
+      <div style="margin-top: 24px;">
+        <h3 style="font-size: 15px; color: var(--neon-gold); margin-bottom: 10px;">Đang phát:</h3>
+        <div id="current-track-info" style="margin-bottom: 14px;"></div>
+        <div class="btn-group" style="margin-bottom: 16px;">
+          <button id="btn-music-prev" class="btn btn-secondary">⏮ Bài trước</button>
+          <button id="btn-music-pause" class="btn btn-secondary">⏯ Dừng / Tiếp tục</button>
+          <button id="btn-music-next" class="btn btn-secondary">⏭ Bài tiếp</button>
+          <button id="btn-tap-tempo" class="btn btn-primary">🥁 Bấm theo nhịp (Tap Tempo)</button>
+          <input type="number" id="input-track-bpm" style="width: 80px;" class="form-control" value="124" />
+        </div>
+      </div>
+
+      <h3 style="font-size: 15px; color: var(--neon-cyan); margin-top: 20px;">Hàng chờ:</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Bài Hát</th>
+            <th>BPM</th>
+            <th>Thao Tác</th>
+          </tr>
+        </thead>
+        <tbody id="music-queue-list"></tbody>
+      </table>
+    </div>
+
+    <!-- 5. Tab Thông báo & Điều khiển -->
+    <div id="panel-controls" class="tab-panel">
+      <h2 style="font-size: 18px; margin-bottom: 14px;">Thông báo & Góc Máy Quay 3D</h2>
+      <div class="form-group">
+        <label>Gửi thông báo chạy chữ lên mọi màn hình (tối đa 160 ký tự):</label>
+        <input type="text" id="input-announcement" class="form-control" maxlength="160" placeholder="Nhập thông báo..." />
+      </div>
+      <button id="btn-send-announcement" class="btn btn-primary">Gửi Thông Báo</button>
+
+      <h3 style="font-size: 15px; color: var(--neon-purple); margin-top: 24px; margin-bottom: 10px;">Chọn góc máy quay:</h3>
+      <div class="btn-group">
+        <button class="btn btn-secondary btn-camera-preset" data-index="0">Toàn cảnh</button>
+        <button class="btn btn-secondary btn-camera-preset" data-index="1">Sân khấu & DJ</button>
+        <button class="btn btn-secondary btn-camera-preset" data-index="2">Sàn nhảy</button>
+        <button class="btn btn-secondary btn-camera-preset" data-index="3">Quầy Bar</button>
+        <button class="btn btn-secondary btn-camera-preset" data-index="4">Từ trên cao</button>
+        <button class="btn btn-secondary btn-camera-preset" data-index="5">Góc thấp</button>
+        <button class="btn btn-secondary btn-camera-preset" data-index="6">Lồng vũ công</button>
+        <button class="btn btn-secondary btn-camera-preset" data-index="7">Góc DJ</button>
+      </div>
+
+      <h3 style="font-size: 15px; color: #ef4444; margin-top: 24px; margin-bottom: 10px;">Điều khiển sàn:</h3>
+      <button id="btn-clear-floor" class="btn btn-danger">Xoá sạch sàn nhảy (Giải tán)</button>
+    </div>
+
+    <!-- 6. Tab Cài đặt -->
+    <div id="panel-settings" class="tab-panel">
+      <h2 style="font-size: 18px; margin-bottom: 14px;">Cài Đặt Hệ Thống</h2>
+      <div class="form-group">
+        <label>Tên hiển thị sàn quẩy:</label>
+        <input type="text" id="input-club-title" class="form-control" />
+      </div>
+      <div class="form-group">
+        <label>Số nhân vật tối đa trên sàn (MAX_AVATARS):</label>
+        <input type="number" id="input-max-avatars" class="form-control" />
+      </div>
+      <div class="form-group">
+        <label>Thời gian im lặng trước khi rời sàn (phút):</label>
+        <input type="number" id="input-idle-minutes" class="form-control" />
+      </div>
+      <div class="form-group">
+        <label>Chế độ hiển thị thẻ tên trên đầu nhân vật:</label>
+        <select id="select-nametag-display" class="form-control">
+          <option value="all">Cả ảnh đại diện và tên</option>
+          <option value="name_only">Chỉ hiện tên</option>
+        </select>
+      </div>
+
+      <div style="background: rgba(0,0,0,0.3); padding: 14px; border-radius: 8px; margin: 18px 0;">
+        <h3 style="font-size: 14px; color: var(--neon-cyan); margin-bottom: 10px;">🎧 Tuỳ chỉnh DJ Sân Khấu:</h3>
+        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px;">
+          <div>
+            <label style="font-size: 12px; color: #cbd5e1;">Tên DJ / Chủ Kênh:</label>
+            <input type="text" id="input-dj-name" class="form-control" placeholder="DJ CHỦ KÊNH" />
+          </div>
+          <div>
+            <label style="font-size: 12px; color: #cbd5e1;">Giới tính DJ:</label>
+            <select id="select-dj-gender" class="form-control">
+              <option value="male">Nam</option>
+              <option value="female">Nữ</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size: 12px; color: #cbd5e1;">Kiểu trang phục (0-7):</label>
+            <input type="number" id="input-dj-outfit" class="form-control" min="0" max="7" value="0" />
+          </div>
+        </div>
+      </div>
+
+      <button id="btn-save-settings" class="btn btn-primary">Lưu Cài Đặt</button>
+    </div>
+
+    <!-- 7. Tab Nhật ký & Sao lưu -->
+    <div id="panel-audit" class="tab-panel">
+      <h2 style="font-size: 18px; margin-bottom: 14px;">Nhật Ký & Sao Lưu Dữ Liệu</h2>
+      <div class="btn-group" style="margin-bottom: 24px;">
+        <button id="btn-export-gifts-csv" class="btn btn-secondary">Xuất CSV Nhật Ký Quà</button>
+        <button id="btn-export-donors-csv" class="btn btn-secondary">Xuất CSV Người Donate</button>
+        <button id="btn-backup-data" class="btn btn-primary">Tải Bản Sao Lưu (JSON)</button>
+      </div>
+
+      <div class="form-group">
+        <label>Khôi phục từ file sao lưu (JSON):</label>
+        <input type="file" id="input-restore-file" accept=".json" class="form-control" />
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/dist/admin.js"></script>
+</body>
+</html>

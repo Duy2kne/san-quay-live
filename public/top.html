@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bảng Xếp Hạng Donate - Sàn Quẩy Live</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    body {
+      overflow-y: auto !important;
+      background: #070312;
+      padding: 30px 20px;
+    }
+    .top-container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: rgba(18, 10, 36, 0.95);
+      border: 1px solid var(--bg-card-border);
+      border-radius: 16px;
+      padding: 28px;
+      box-shadow: 0 0 35px rgba(168, 85, 247, 0.25);
+    }
+    .top-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .top-controls {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    .filter-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #94a3b8;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .filter-btn.active {
+      background: var(--neon-gold);
+      color: #000;
+      border-color: var(--neon-gold);
+    }
+    .search-input {
+      flex: 1;
+      min-width: 200px;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      padding: 12px 14px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 14px;
+    }
+    th {
+      color: var(--neon-cyan);
+      font-weight: 700;
+    }
+    .donor-cell {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .avatar-sm {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+    .avatar-sm.placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--neon-purple);
+      color: #fff;
+      font-weight: bold;
+    }
+    .rank-num {
+      font-weight: 800;
+      font-size: 16px;
+      width: 32px;
+    }
+    .rank-1 { color: #f59e0b; }
+    .rank-2 { color: #cbd5e1; }
+    .rank-3 { color: #cd7f32; }
+  </style>
+</head>
+<body>
+  <div class="top-container">
+    <div class="top-header">
+      <div>
+        <h1 style="font-size: 26px; font-weight: 800; color: #fff;">🏆 Bảng Xếp Hạng Donate</h1>
+        <p style="font-size: 14px; color: #94a3b8; margin-top: 4px;">Top 100 người ủng hộ nhiệt tình nhất tại Sàn Quẩy Live</p>
+      </div>
+      <div>
+        <a href="/" class="btn-sm" style="padding: 8px 16px; font-size: 13px; text-decoration: none; display: inline-block;">← Về Sàn Quẩy</a>
+      </div>
+    </div>
+
+    <div class="top-controls">
+      <button class="filter-btn active" data-scope="session">Phiên Này</button>
+      <button class="filter-btn" data-scope="today">Hôm Nay</button>
+      <button class="filter-btn" data-scope="week">Tuần Này</button>
+      <button class="filter-btn" data-scope="all">Mọi Thời Gian</button>
+      <input type="text" id="search-box" class="search-input" placeholder="Tìm kiếm theo tên người xem..." />
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Hạng</th>
+          <th>Người Xem</th>
+          <th>Cấp Độ</th>
+          <th>Kim Cương</th>
+          <th>Số Quà</th>
+        </tr>
+      </thead>
+      <tbody id="top-table-body">
+        <tr><td colspan="5" style="text-align: center; color: #94a3b8;">Đang tải dữ liệu...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    let currentScope = 'session';
+    let currentSearch = '';
+
+    async function fetchTop() {
+      const tbody = document.getElementById('top-table-body');
+      try {
+        const resp = await fetch(`/api/top?scope=${currentScope}&search=${encodeURIComponent(currentSearch)}`);
+        const data = await resp.json();
+        if (!data.donors || data.donors.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #94a3b8;">Chưa có dữ liệu</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = '';
+        data.donors.forEach((d) => {
+          const tr = document.createElement('tr');
+          const crown = d.rank === 1 ? '👑 1' : d.rank === 2 ? '🥈 2' : d.rank === 3 ? '🥉 3' : `#${d.rank}`;
+          const rankClass = d.rank <= 3 ? `rank-${d.rank}` : '';
+
+          const avatarHtml = d.avatarUrl
+            ? `<img class="avatar-sm" src="/api/avatar?url=${encodeURIComponent(d.avatarUrl)}" alt="" />`
+            : `<div class="avatar-sm placeholder">${(d.nickname || 'U').charAt(0)}</div>`;
+
+          tr.innerHTML = `
+            <td class="rank-num ${rankClass}">${crown}</td>
+            <td>
+              <div class="donor-cell">
+                ${avatarHtml}
+                <strong>${d.nickname || d.uniqueId}</strong>
+              </div>
+            </td>
+            <td><span class="top-lvl">Lv.${d.level || 0}</span></td>
+            <td><strong style="color: var(--neon-gold);">💎 ${(d.diamonds || 0).toLocaleString()}</strong></td>
+            <td>${(d.giftCount || 0).toLocaleString()}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (err) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #ef4444;">Lỗi tải dữ liệu</td></tr>';
+      }
+    }
+
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentScope = btn.dataset.scope;
+        fetchTop();
+      });
+    });
+
+    const searchBox = document.getElementById('search-box');
+    let searchTimeout = null;
+    searchBox.addEventListener('input', (e) => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        currentSearch = e.target.value.trim();
+        fetchTop();
+      }, 300);
+    });
+
+    fetchTop();
+  </script>
+</body>
+</html>

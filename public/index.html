@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sàn Quẩy Live - TikTok Live 3D Nightclub</title>
+  <meta name="description" content="Biến phiên TikTok Live thành sàn nhảy 3D nightclub tương tác thời gian thực: người xem rơi từ trên trời xuống, quẩy theo nhạc YouTube đồng bộ, hiệu ứng donate và thăng cấp rực rỡ." />
+  <meta property="og:title" content="Sàn Quẩy Live - TikTok Live 3D Nightclub" />
+  <meta property="og:description" content="Biến phiên TikTok Live thành sàn nhảy 3D nightclub tương tác thời gian thực: người xem rơi từ trên trời xuống, quẩy theo nhạc YouTube đồng bộ, hiệu ứng donate và thăng cấp rực rỡ." />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <!-- 3D WebGL Canvas Layer -->
+  <div id="webgl-canvas-container"></div>
+
+  <!-- HUD Overlay Layer -->
+  <div class="hud-layer">
+    <!-- Header -->
+    <header class="hud-header interactive">
+      <div class="header-left">
+        <h1 class="club-title">SÀN QUẨY LIVE 3D</h1>
+        <span id="header-channel" class="channel-tag">Chờ kết nối live...</span>
+        <span id="header-status" class="status-badge idle">⚪ CHỜ KẾT NỐI</span>
+      </div>
+      <div class="header-right">
+        <span id="header-viewers" class="stats-pill">👀 0 người xem</span>
+        <span id="header-dancers" class="stats-pill">🕺 0 trên sàn</span>
+        <a href="/admin" class="btn-admin-link" title="Trang quản trị">🛡️</a>
+      </div>
+    </header>
+
+    <!-- Center Banners & Notifications -->
+    <div class="hud-center">
+      <!-- Gift Thank You Banner -->
+      <div id="thankyou-banner" class="thankyou-banner">
+        <img id="banner-donor-avatar" class="banner-avatar" src="" alt="" style="display: none;" />
+        <div class="banner-text">
+          <span id="banner-donor-name" class="banner-title">Nickname</span>
+          <span id="banner-gift-details" class="banner-desc">đã tặng Quà x1</span>
+        </div>
+      </div>
+
+      <!-- Top 1 Dethroned Banner -->
+      <div id="top1-banner" class="top1-banner">
+        👑 <span id="top1-name">Nickname</span> ĐÃ VƯƠN LÊN TOP 1 DONATE!
+      </div>
+
+      <!-- Whole Floor Party Banner -->
+      <div id="allfloor-party-banner" class="allfloor-party-banner">
+        🔥 CẢ SÀN QUẨY LÊN! ĐẠI TIỆC 10+ NGƯỜI ĐÃ BẮT ĐẦU! 🔥
+      </div>
+
+      <!-- Announcement Marquee -->
+      <div id="announcement-marquee" class="announcement-marquee">
+        Thông báo hệ thống
+      </div>
+
+      <!-- Audio Unlock Button (for browsers blocking autoplay audio) -->
+      <button id="btn-unlock-audio" class="btn-unlock-audio interactive">
+        🔊 Bấm để bật nhạc & âm thanh
+      </button>
+
+      <!-- Running Hint Ticker for Gender Switch -->
+      <div id="gender-hint-ticker" class="gender-hint-ticker">
+        💬 Bình luận <strong>nam</strong> hoặc <strong>nữ</strong> để đổi nhân vật
+      </div>
+
+      <!-- Toast Container for Level-Ups -->
+      <div id="toast-container" class="toast-container"></div>
+    </div>
+
+    <!-- Body Flanks (Left: Top Donors, Right: Event Feed) -->
+    <div class="hud-body">
+      <!-- Left: Top Donors Card -->
+      <aside class="top-donors-card interactive">
+        <div class="top-card-header">
+          <span class="top-title">🏆 TOP DONATE</span>
+          <div class="top-tabs">
+            <button class="top-tab-btn active" data-scope="session">Phiên</button>
+            <button class="top-tab-btn" data-scope="today">Ngày</button>
+            <button class="top-tab-btn" data-scope="week">Tuần</button>
+            <button class="top-tab-btn" data-scope="all">Tất cả</button>
+          </div>
+        </div>
+        <div id="top-donors-list" class="top-donors-list">
+          <div class="empty-top">Chưa có lượt donate nào</div>
+        </div>
+        <a href="/top" target="_blank" class="top-footer-link">Xem bảng xếp hạng đầy đủ →</a>
+      </aside>
+
+      <!-- Right: Live Event Feed -->
+      <aside class="event-feed-card interactive">
+        <div class="event-feed-header">📡 Sự kiện Live</div>
+        <div id="event-feed-list" class="event-feed-list"></div>
+      </aside>
+    </div>
+
+    <!-- Bottom Corner: YouTube Player Dock -->
+    <div class="player-dock interactive">
+      <div class="player-dock-header">
+        <span>🎵 ĐANG PHÁT</span>
+      </div>
+      <div class="player-frame-box">
+        <div id="youtube-iframe-target"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Entry Script -->
+  <script type="module" src="/dist/app.js"></script>
+</body>
+</html>

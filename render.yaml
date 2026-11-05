@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: san-quay-live
+    env: node
+    plan: free
+    region: singapore
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    autoDeploy: false
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: DATA_DIR
+        value: ./data
+      - key: MAX_AVATARS
+        value: 80
+      - key: AVATAR_IDLE_MINUTES
+        value: 10
+      - key: LEVEL_FACTOR
+        value: 10

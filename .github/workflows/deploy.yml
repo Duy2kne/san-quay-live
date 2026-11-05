@@ -1,0 +1,78 @@
+name: Deploy Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Verify Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Check and Build
+        run: |
+          npm run check
+          npm run build
+
+  deploy:
+    name: Deploy to Production
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Option A: Deploy to Render via Deploy Hook (if configured)
+      - name: Trigger Render Deploy Hook
+        if: env.RENDER_DEPLOY_HOOK_URL != ''
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          echo "Triggering Render deployment..."
+          curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"
+
+      # Option B: Deploy to VPS via SSH (if configured)
+      - name: Deploy to VPS
+        if: env.VPS_HOST != ''
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd ${{ secrets.VPS_PATH }}
+            git pull
+            npm ci
+            npm run build
+            npm prune --omit=dev
+            pm2 reload san-quay-live || pm2 start server.js --name san-quay-live
+
+      # Health verification
+      - name: Verify Live Service Health
+        if: env.APP_URL != ''
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+        run: |
+          echo "Checking $APP_URL/health..."
+          sleep 15
+          curl -fsS "$APP_URL/health"

@@ -1,0 +1,7 @@
+node_modules
+public/dist
+data/*.json
+.env
+.git
+.github
+*.log

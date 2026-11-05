@@ -1,0 +1,410 @@
+# PROMPT: Xây dựng web "Sàn Quẩy Live": biến TikTok Live thành sàn nhảy 3D
+
+> Dán toàn bộ nội dung dưới đây cho AI (Gemini, Claude, ChatGPT, Cursor…).
+
+---
+
+## 1. Vai trò & mục tiêu
+
+Bạn là lập trình viên full-stack giàu kinh nghiệm về **Node.js, Socket.IO, Three.js** và tích hợp **TikTok Live**. Hãy xây dựng **hoàn chỉnh, chạy được ngay** website **"Sàn Quẩy Live"**:
+
+1. **Chỉ quản trị viên (admin)** được dán link phiên live TikTok, ví dụ `https://www.tiktok.com/@tenkenh/live`, `@tenkenh` hoặc `tenkenh`, rồi bấm kết nối. Người xem thường không nhập link.
+2. Khi kết nối xong, **mỗi người xem vào live sẽ có một nhân vật rơi từ trên trời xuống sàn nhảy**, tiếp đất rồi nhảy cùng mọi người. Nhân vật có tên và ảnh đại diện TikTok của người đó.
+3. Sàn nhảy 3D kiểu nightclub. **Nhạc lấy từ YouTube**: admin dán link bài hát / playlist YouTube vào trang admin, mọi màn hình phát **cùng một bài, cùng một thời điểm**; đèn và nhân vật nhún theo nhịp bài đang phát.
+4. **Ai tặng quà (donate), nhân vật người đó làm hiệu ứng khác nhau tuỳ giá trị quà.** Quà càng lớn, hiệu ứng càng hoành tráng.
+5. Web **tổng hợp toàn bộ donate**, xếp **Top người donate nhiều nhất** (theo phiên, ngày, tuần, mọi thời gian).
+6. Người donate được **lên cấp từ 0 đến 100** theo tổng donate. Cấp càng cao, nhân vật càng nhiều hiệu ứng (hào quang, cánh, vương miện, thú cưỡi…).
+7. Chủ kênh mở trang này trong **OBS / TikTok LIVE Studio (Browser Source)** để phát lên chính buổi live.
+
+Toàn bộ giao diện bằng **tiếng Việt**. Code sẵn sàng **push lên GitHub và deploy lên server thật**.
+
+> Đây là công cụ không chính thức, không liên kết với TikTok. Không dùng logo TikTok; tên và giao diện là của riêng app. Chỉ dùng cho kênh của chính bạn hoặc kênh đã đồng ý.
+
+---
+
+## 2. Công nghệ bắt buộc
+
+| Phần | Công nghệ |
+|---|---|
+| Server | Node.js 20+, Express, Socket.IO 4 |
+| Kết nối TikTok Live | npm **`tiktok-live-connector`** (bản ổn định mới nhất). **Đọc README của thư viện** để dùng đúng tên lớp (bản mới là `TikTokLiveConnection`), tên sự kiện và tên trường dữ liệu; không đoán. |
+| Client 3D | Three.js (cài qua npm, esbuild đóng gói) + `EffectComposer` / `UnrealBloomPass` cho đèn neon toả sáng |
+| Build | **esbuild `"^0.27.0"`** trong `devDependencies` |
+| Nhạc | **YouTube IFrame Player API** (`https://www.youtube.com/iframe_api`) để phát nhạc từ link YouTube admin chọn; nhịp đèn tính theo BPM (mục 9) |
+| Âm thanh phụ | Web Audio API (ting, pháo hoa, lên cấp, nhạc EDM tổng hợp dự phòng khi hàng chờ trống) |
+| Giao diện | HTML + CSS + JavaScript thuần (ES modules) |
+| Lưu dữ liệu | File JSON trong thư mục `DATA_DIR` (ghi an toàn: ghi file tạm rồi đổi tên), lưu định kỳ 30 giây và khi tắt server |
+| Font | "Be Vietnam Pro" (hỗ trợ tiếng Việt) |
+| CI/CD | GitHub Actions |
+
+**Bắt buộc có `package-lock.json`** và commit lên GitHub. Mọi nơi cài đặt đều dùng `npm ci`.
+
+`package.json` tối thiểu:
+
+```json
+{
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node server.js",
+    "dev": "node build.mjs --dev",
+    "check": "node --check server.js && node build.mjs --check"
+  },
+  "devDependencies": { "esbuild": "^0.27.0" }
+}
+```
+
+`build.mjs`: entry `client/main.js` → `public/dist/app.js`, và `client/admin.js` → `public/dist/admin.js`; `bundle: true`, `format: "esm"`, `minify` khi production, `sourcemap: true`. Tham số `--dev` vừa watch vừa chạy server; phải **chạy được trên Windows**, không dùng `&` trong script.
+
+Cấu trúc thư mục:
+
+```
+san-quay-live/
+├─ server.js
+├─ src/
+│  ├─ tiktok.js          (kết nối TikTok, chuẩn hoá sự kiện, tự kết nối lại)
+│  ├─ session.js         (phiên live hiện tại, người xem, hàng đợi hiệu ứng)
+│  ├─ gifts.js           (bảng quà → hiệu ứng)
+│  ├─ donors.js          (tổng hợp donate, bảng xếp hạng, cấp độ 0–100)
+│  ├─ store.js           (đọc/ghi JSON an toàn)
+│  ├─ music.js           (hàng chờ nhạc YouTube, bài đang phát, đồng bộ thời gian)
+│  ├─ admin.js           (API quản trị, kiểm tra mật khẩu, khoá khi sai nhiều lần)
+│  └─ demo.js            (giả lập người xem & quà để test)
+├─ config/gifts.json     (bảng quà → hiệu ứng mặc định)
+├─ data/                 (donors.json, gift-log.json, settings.json, music.json; KHÔNG commit)
+├─ build.mjs, package.json, package-lock.json
+├─ render.yaml, Dockerfile, .dockerignore, .gitignore, .env.example, README.md
+├─ .github/workflows/ci.yml, deploy.yml
+├─ client/
+│  ├─ main.js, scene.js (sàn nhảy), avatar.js (nhân vật + điệu nhảy + rơi xuống),
+│  ├─ effects.js (hiệu ứng quà), levels.js (hiệu ứng theo cấp),
+│  ├─ youtube.js (trình phát YouTube + đồng bộ + đồng hồ nhịp), sfx.js (âm thanh phụ, nhạc dự phòng),
+│  ├─ ui.js, network.js, admin.js (trang quản trị)
+└─ public/
+   ├─ index.html, admin.html, top.html, css/style.css
+   └─ dist/              (esbuild sinh ra, KHÔNG commit)
+```
+
+---
+
+## 3. Luồng sử dụng
+
+- **Trang chính `/`**: hiển thị sàn nhảy của **phiên live đang được admin kết nối**. Không có ô nhập link. Chưa có phiên nào thì hiện màn chờ "Sàn quẩy sắp mở cửa" kèm Top donate mọi thời gian và chạy demo nhẹ cho đẹp.
+- **Trang quản trị `/admin`**: admin dán link live, bấm **"Kết nối Live"**, xem trạng thái, ngắt kết nối, bật **Demo** (mục 10).
+- **Trang `/top`**: bảng xếp hạng donate đầy đủ (phiên này / hôm nay / tuần này / mọi thời gian), có ảnh đại diện, cấp độ, tổng kim cương.
+- **OBS**: `/?overlay=1` (ẩn nút, chỉ giữ cảnh + banner + Top), thêm `&transparent=1` để nền trong suốt; kích thước chuẩn 1080×1920 (dọc) và 1920×1080.
+- Mọi trình duyệt mở trang (máy chủ kênh, OBS, điện thoại) **thấy cùng một sàn, đồng bộ thời gian thực**.
+
+---
+
+## 4. Kết nối TikTok Live (phía server)
+
+- Admin dán link: chấp nhận `https://www.tiktok.com/@tenkenh/live`, `@tenkenh`, `tenkenh`. Tách `uniqueId` bằng regex, chỉ cho phép `[A-Za-z0-9._]` dài 2–24 ký tự. Sai định dạng thì báo lỗi ngay.
+- Trạng thái hiển thị cho admin: "Đang kết nối…" → "Đã kết nối ✓ (N người đang xem)" hoặc lỗi rõ ràng: "Kênh này hiện không phát live", "Không tìm thấy kênh", "TikTok đang giới hạn kết nối, thử lại sau ít phút".
+- Mặc định **một phiên live tại một thời điểm**. Kết nối kênh mới thì ngắt kênh cũ (có hộp xác nhận trong trang admin).
+- Bật thông tin quà mở rộng của thư viện (`enableExtendedGiftInfo`) để có tên quà, ảnh quà, giá kim cương.
+- Khi kết nối, gọi hàm lấy **danh sách quà của phòng** (`fetchAvailableGifts` hoặc tên tương đương trong README) và lưu vào `data/gift-catalog.json`, để admin thấy đúng các quà thật của khu vực đó cùng giá.
+- Chuẩn hoá sự kiện rồi phát qua Socket.IO tới mọi trình duyệt:
+
+| Sự kiện TikTok | Xử lý trên web |
+|---|---|
+| Người xem vào live (member) | **Nhân vật rơi từ trên trời xuống** (mục 5) |
+| Tặng quà (gift) | Hiệu ứng theo bảng quà (mục 6), cộng vào tổng donate và cấp độ (mục 7, 8), banner cảm ơn |
+| Bình luận (chat) | Bong bóng chat trên đầu nhân vật; chưa có nhân vật thì tạo (rơi xuống) |
+| Thả tim (like) | Tim bay lên từ nhân vật, gộp lại để không spam; đủ mốc thì hiện chữ "PERFECT / GREAT / COOL" và đếm combo |
+| Theo dõi (follow) | Huy hiệu ⭐ trên tên + nhảy ăn mừng ngắn |
+| Chia sẻ (share) | Biểu tượng chia sẻ bay lên + vỗ tay |
+| Số người xem (roomUser) | Bộ đếm "👀 N người đang xem" |
+| Kết thúc live / mất kết nối | Thông báo; **tự kết nối lại** với thời gian chờ tăng dần (5s, 10s, 30s, tối đa 60s); admin có nút dừng hẳn |
+
+- **Quà combo** (tặng Hoa hồng liên tục): trong lúc combo hiện bộ đếm "x12" trên đầu nhân vật; **chỉ cộng donate và chạy hiệu ứng lớn khi combo kết thúc**, dùng tổng số lượng. Quà không combo thì xử lý ngay. **Không được cộng trùng** một lượt quà (kiểm tra cờ kết thúc combo theo README của thư viện).
+- Dữ liệu người dùng gửi xuống client: `userId`, `uniqueId`, `nickname`, `avatarUrl`, `level` (cấp trong app), `rank` (hạng donate). Với quà: `giftId`, `giftName`, `giftImage`, `diamonds` (giá 1 quà), `count`, `total` = `diamonds × count`.
+- **Proxy ảnh** `/api/avatar?url=...`: chỉ cho phép tên miền ảnh của TikTok (`*.tiktokcdn.com`, `*.tiktokcdn-us.com`, `*.ibyteimg.com`), chỉ trả về ảnh (kiểm tra `content-type`), cache LRU ~500 ảnh, để Three.js dùng làm texture không lỗi CORS.
+- Khoá ký (sign API key) nếu thư viện cần: đọc từ biến môi trường `TIKTOK_SIGN_API_KEY` (không bắt buộc).
+- Ghi log gọn: kết nối, lỗi, số sự kiện mỗi phút.
+
+---
+
+## 5. Sàn nhảy 3D & nhân vật rơi xuống
+
+**Sàn nhảy** dựng bằng code Three.js, không cần model ngoài, phong cách nightclub cao cấp:
+- Sân khấu chính có **màn hình LED lớn** phía sau quầy DJ, DJ ảo chỉnh mixer, loa hai bên.
+- Màn hình LED hiển thị: ảnh đại diện + tên kênh + chữ "LIVE", hiệu ứng sóng nhạc, ảnh người vừa donate lớn nhất. Admin có thể đặt thêm **video lặp (.mp4) hoặc ảnh** cho màn hình. Không nhúng được video live TikTok vào web; khi phát qua OBS, có thể dùng chế độ nền trong suốt để ghép sàn nhảy lên camera thật.
+- **Lồng vũ công** treo hai bên (có vũ công ảo nhảy bên trong), cầu thang lên sân khấu, quầy bar với ly và chai phát sáng, sofa VIP.
+- Sàn ô LED đổi màu theo nhịp, **quả cầu disco** xoay, đèn moving head và laser quét, khói sân khấu nhẹ, ngoài cửa kính là **thành phố về đêm** với cửa sổ sáng đèn.
+- Trên sàn có các **vòng tròn phát sáng** đánh dấu chỗ đứng nhảy.
+- **Camera**: ít nhất **8 góc máy đặt sẵn** (toàn cảnh, sân khấu, sàn nhảy, quầy bar, từ trên cao…), tự chuyển góc chậm sau mỗi 20–40 giây; admin chọn được góc. Khi có quà lớn, **"máy quay bay" (drone) lượn tới quay cận cảnh** người tặng.
+
+**Nhân vật** dạng chibi low-poly:
+- Đầu tròn dán **ảnh đại diện TikTok** (huy hiệu tròn trên mặt hoặc trên đầu). Lỗi ảnh thì dùng màu ngẫu nhiên theo `userId`.
+- Có ít nhất **12 bộ trang phục / kiểu tóc**, chọn ngẫu nhiên nhưng **cố định theo `userId`** (vào lại vẫn giống cũ). Cấp càng cao, trang phục càng xịn (mục 8).
+- Tên `nickname` trên đầu kèm huy hiệu cấp **"Lv.37"** tô màu theo bậc cấp; top 3 donate có vương miện 👑.
+
+**Người xem vào live → nhân vật rơi xuống:**
+1. Một luồng sáng chiếu từ trần xuống một vòng tròn còn trống trên sàn.
+2. Nhân vật **rơi từ trên cao** (xoay nhẹ, có vệt sáng), người cấp cao có dù hoặc cánh bay lượn xuống từ từ.
+3. **Tiếp đất**: vòng sóng bụi sáng toả ra, chữ nhỏ "{nickname} đã vào sàn!", nhân vật nhún gối rồi vẫy chào.
+4. Sau đó nhảy cùng mọi người theo nhịp nhạc. Người vào cùng lúc thì rơi lần lượt, cách nhau 0,2–0,4 giây, không chồng lên nhau.
+
+**Khi đứng trên sàn:** nhân vật nhảy theo nhịp, thỉnh thoảng đổi điệu, đi tới quầy bar hoặc sofa rồi quay lại. Tránh nhau đơn giản để không đứng chồng lên nhau.
+
+**Hiệu năng khi đông người:**
+- Tối đa `MAX_AVATARS` nhân vật (mặc định 80). Vượt quá thì người im lặng lâu nhất rời sàn (đi ra cửa); **người donate và người cấp cao được ưu tiên ở lại**. Có bộ đếm "+N người nữa trong sàn".
+- Nhân vật không hoạt động (không chat, không quà, không tim) sau `AVATAR_IDLE_MINUTES` phút thì rời sàn.
+- Dùng chung geometry/material, InstancedMesh cho phần lặp lại, giới hạn `devicePixelRatio`; mục tiêu **60 FPS** khi có 80 nhân vật trên laptop thường. Điện thoại tự giảm hiệu ứng (bloom nửa độ phân giải, ít hạt hơn).
+
+---
+
+## 6. Hiệu ứng theo giá trị quà
+
+Giá quà tính bằng **xu/kim cương TikTok** của 1 quà (trường giá trong dữ liệu quà). `total = giá × số lượng`. Giá tham khảo một số quà phổ biến (có thể khác theo khu vực và thay đổi theo thời gian; **luôn lấy giá thật từ danh sách quà của phòng**):
+
+| Quà | Giá tham khảo |
+|---|---|
+| Rose (Hoa hồng), TikTok, GG, Heart Me | 1 |
+| Finger Heart | 5 |
+| Perfume | 20 |
+| Doughnut | 30 |
+| Hand Hearts, Confetti | 100 |
+| Corgi | 299 |
+| Money Gun | 500 |
+| Galaxy | 1.000 |
+| Lion | 29.999 |
+| TikTok Universe | 34.999–44.999 |
+
+**Bảng mặc định theo `total`:**
+
+| `total` | Hiệu ứng của nhân vật | Hiệu ứng thêm |
+|---|---|---|
+| 1–4 | Vẫy tay / nâng ly cụng | Tim nhỏ bay lên |
+| 5–29 | Nhảy tưng tưng, vỗ tay, lắc hông | Pháo giấy nhỏ quanh người |
+| 30–99 | Điệu đặc biệt: xoay vòng, robot, moonwalk | Đèn sàn đổi theo màu người đó |
+| 100–499 | **Lên sân khấu dưới spotlight**, nhảy solo | Pháo giấy lớn, tên hiện trên màn LED |
+| 500–999 | Cạnh DJ "cầm mic", **cả sàn quay lại vỗ tay** | Mưa tiền / mưa hoa hồng, drone quay cận cảnh |
+| 1.000–9.999 | **Show VIP**: nhân vật to lên, bay lên sân khấu, cả sàn nhảy đồng loạt 15 giây | Pháo hoa, laser cực đại, nhạc "drop" |
+| ≥ 10.000 | **Siêu show**: rồng / sư tử ánh sáng bay quanh sàn, nhân vật cưỡi lên | Toàn sàn đổi màu vàng, banner toàn màn hình 8 giây |
+
+- Có ít nhất **14 điệu nhảy** (`wave`, `cheers`, `bounce`, `clap`, `hip_shake`, `spin`, `robot`, `moonwalk`, `hands_up`, `breakdance`, `shuffle`, `floss`, `heart_dance`, `stage_solo`) và **ít nhất 15 hiệu ứng quà** (tim, pháo giấy, pháo hoa, mưa hoa hồng, mưa tiền, tên lửa, drone quay cận, spotlight, laser, rồng ánh sáng, sư tử ánh sáng, mưa sao, vụ nổ kim tuyến, vòng lửa sân khấu, show VIP).
+- **Ghi đè theo tên hoặc ID quà** trong `config/gifts.json` và trong trang admin, ví dụ `"Rose": "cheers"`, `"Money Gun": "money_rain"`, `"Galaxy": "vip_show"`, `"Lion": "lion_show"`.
+- Combo: số lượng tăng thời gian hoặc số lần lặp, có giới hạn trên để không kéo dài quá lâu.
+- **Hàng đợi hiệu ứng**: quà lớn chen lên trước; mỗi lúc chỉ 1 "show sân khấu", các hiệu ứng nhỏ của nhiều người chạy song song.
+- **Banner cảm ơn**: ảnh đại diện + huy hiệu cấp + "**{nickname}** đã tặng {ảnh quà} {tên quà} x{count}", âm "ting" và "Cảm ơn bạn! 💖".
+
+---
+
+## 7. Tổng hợp donate & bảng xếp hạng
+
+- Mỗi lượt quà (sau khi combo kết thúc) được ghi vào `data/gift-log.json`: thời gian, kênh, `userId`, `uniqueId`, `nickname`, tên quà, giá, số lượng, `total`.
+- Người donate lưu trong `data/donors.json` **theo `userId`** (không theo nickname vì nickname đổi được): nickname và ảnh mới nhất, tổng donate **mọi thời gian**, tổng **hôm nay**, **tuần này** (reset thứ Hai, giờ Việt Nam), **phiên hiện tại**, số lượt tặng, quà lớn nhất, lần cuối tặng.
+- **Bảng Top 5** ở góc màn hình (chọn được: phiên / hôm nay / tuần / mọi thời gian), có ảnh, tên, cấp, tổng kim cương. Hạng 1–3 có vương miện vàng / bạc / đồng, nhân vật đứng gần sân khấu hơn.
+- Ai **vượt lên hạng 1** thì có thông báo lớn "👑 {nickname} lên TOP 1!" và nhân vật được đưa lên sân khấu vài giây.
+- Một bảng vàng 3D trên sân khấu (cạnh màn LED) hiện Top 3 mọi thời gian.
+- Trang `/top` hiển thị Top 100 có ô tìm tên.
+- Admin xuất **CSV** nhật ký quà và bảng donate.
+
+---
+
+## 8. Cấp độ 0–100 theo donate
+
+- Kinh nghiệm (XP) = **tổng donate mọi thời gian** của người đó trên kênh.
+- Công thức mặc định: `level = min(100, floor(sqrt(XP / 10)))`, nghĩa là:
+
+| Cấp | Cần tổng donate |
+|---|---|
+| 1 | 10 |
+| 10 | 1.000 |
+| 30 | 9.000 |
+| 50 | 25.000 |
+| 80 | 64.000 |
+| 100 | 100.000 |
+
+  Admin chỉnh được hệ số (thay `10` bằng số khác) trong trang quản trị.
+- **Hiệu ứng mở khoá dần theo bậc cấp** (cộng dồn, cấp sau giữ hiệu ứng cấp trước):
+
+| Cấp | Hiệu ứng nhân vật |
+|---|---|
+| 0 | Bình thường, huy hiệu xám |
+| 1–9 | Huy hiệu xanh lá, viền tên sáng |
+| 10–19 | Vòng sáng dưới chân, huy hiệu xanh dương |
+| 20–29 | Đôi cánh nhỏ phát sáng, rơi xuống bằng dù |
+| 30–49 | Vệt sáng theo bước chân, trang phục kim tuyến, huy hiệu tím |
+| 50–69 | Vương miện nhỏ, hào quang quanh người, vào sàn có luồng sáng riêng |
+| 70–89 | Thú cưng bay theo (rồng nhỏ / phượng hoàng), huy hiệu cam lửa |
+| 90–99 | Cánh lớn, hào quang vàng, bước vào sàn có thông báo riêng |
+| 100 | "Huyền thoại": hào quang cầu vồng, cưỡi rồng khi vào sàn, tên chữ vàng chạy hiệu ứng |
+
+- **Lên cấp**: chữ "LEVEL UP! Lv.{n}" bay lên, vòng sáng toả ra, âm thanh riêng; lên bậc mới (10, 20, 30…) thì có banner lớn.
+- Cấp được lưu, người đó vào lại các buổi live sau vẫn giữ cấp và hiệu ứng.
+
+---
+
+## 9. Nhạc từ YouTube (admin chọn)
+
+**Admin thêm nhạc** (tab "Nhạc" trong `/admin`, mục 10):
+- Dán link YouTube, chấp nhận mọi dạng: `youtube.com/watch?v=ID`, `youtu.be/ID`, `youtube.com/shorts/ID`, `music.youtube.com/watch?v=ID`, link có `&list=…` và link playlist `youtube.com/playlist?list=ID`. Tách `videoId` (11 ký tự `[A-Za-z0-9_-]`) và `listId` bằng regex; sai thì báo lỗi.
+- Server lấy **tên bài và ảnh bìa** qua oEmbed `https://www.youtube.com/oembed?url=...&format=json` (không cần khoá API), có timeout 8 giây và cache.
+- Link **playlist**: trang admin dùng một trình phát YouTube ẩn để nạp playlist (`cuePlaylist`) rồi đọc danh sách video (`getPlaylist()`), gửi lên server để thêm từng bài vào hàng chờ. Nếu có biến môi trường `YOUTUBE_API_KEY` thì server dùng YouTube Data API để lấy danh sách đầy đủ hơn (không bắt buộc).
+- Hàng chờ lưu ở `data/music.json`; tắt server bật lại vẫn còn.
+
+**Điều khiển trong admin:** phát ngay một bài, dừng / tiếp tục, bài tiếp, bài trước, tua tới giây bất kỳ, xoá bài, kéo thả hoặc nút ▲▼ để đổi thứ tự, trộn bài, lặp lại cả danh sách, âm lượng chung, xem bài đang phát và thời gian còn lại.
+
+**Đồng bộ mọi màn hình** (trang chính, OBS, điện thoại):
+- Server giữ trạng thái `{ videoId, title, startedAt, paused, pausedAt, volume, bpm, beatOffset }` theo đồng hồ server và phát qua Socket.IO mỗi khi thay đổi.
+- Client tạo trình phát bằng **YouTube IFrame Player API**, tính vị trí cần phát = `giờ server hiện tại − startedAt`, gọi `seekTo` khi lệch quá 1,5 giây; kiểm tra lại mỗi 5 giây. Client đo chênh lệch đồng hồ với server (ping/pong) để tính đúng.
+- **Tự chuyển bài**: client báo độ dài bài (`getDuration()`) về server; server tự chuyển sang bài tiếp khi hết bài, nên dù chỉ còn một màn hình mở thì hàng chờ vẫn chạy đúng.
+- Bài **không cho nhúng** (lỗi 101 / 150) hoặc bị xoá thì tự bỏ qua, chuyển bài tiếp và báo cho admin.
+- Hàng chờ trống thì phát **nhạc EDM tổng hợp bằng Web Audio** khoảng 124 BPM (kick, clap, hi-hat, bass, synth) để sàn không im lặng.
+
+**Trình phát hiển thị:**
+- Theo quy định của YouTube, trình phát **phải hiện trên màn hình** (tối thiểu 200×200 px), không được ẩn hay chỉ lấy tiếng. Đặt trình phát trong một **khung "Đang phát" kiểu đĩa than / màn hình nhỏ** ở góc dưới (kèm tên bài), cả ở chế độ OBS; admin chọn được góc đặt.
+- Trình duyệt chặn tự phát có tiếng: trang chính hiện nút lớn **"🔊 Bấm để bật nhạc"** cho tới khi người xem bấm. Trong OBS / TikTok LIVE Studio thì tự phát (README hướng dẫn bật "Control audio via OBS").
+- Tuỳ chọn trong admin: chỉ màn hình OBS phát tiếng, các màn hình khác (điện thoại người xem) mặc định tắt tiếng.
+
+**Đèn và nhân vật nhảy theo nhịp bài YouTube:**
+- Trình duyệt không đọc được sóng âm của trình phát YouTube, nên nhịp tính bằng **đồng hồ BPM** gắn với thời gian bài: `phaNhịp = ((thờiGianBài − beatOffset) × bpm / 60) mod 1`.
+- Mỗi bài có `bpm` (mặc định 124) và `beatOffset`. Trong admin có nút **"Bấm theo nhịp" (tap tempo)**: admin bấm theo nhạc 8–16 lần, web tự tính BPM và độ lệch rồi lưu cho bài đó. Có ô nhập BPM tay.
+- Theo nhịp này: sàn LED, quả cầu disco, đèn moving head, laser, màn LED và **nhân vật nhún / đổi động tác đúng phách**; cứ 32 phách đổi kiểu đèn, có đoạn "build-up" và "drop" giả lập.
+
+**Âm thanh phụ** (Web Audio, không cắt ngang nhạc YouTube): ting khi có quà, reo hò khi có show VIP, pháo hoa, lên cấp, tiếng "bụp" khi nhân vật tiếp đất. Quà ≥ 1.000 kích hoạt hiệu ứng "drop" (đèn cực đại + âm thanh riêng), nhạc YouTube vẫn chạy tiếp.
+
+**Cảnh báo bản quyền** trong trang admin và README: phát nhạc có bản quyền trên TikTok Live có thể bị tắt tiếng hoặc khoá live. Nên chọn nhạc miễn phí bản quyền (No Copyright Sounds, YouTube Audio Library…). Chỉ phát qua trình phát chính thức của YouTube, **không tải hay tách tiếng** từ YouTube.
+
+---
+
+## 10. Trang quản trị `/admin` (BẮT BUỘC)
+
+**Đăng nhập**
+- Mật khẩu đặt ở biến môi trường **`ADMIN_PASSWORD`** (không đặt thì trang quản trị báo "chưa cấu hình" và khoá). So sánh bằng `crypto.timingSafeEqual`.
+- Sai **8 lần** liên tiếp từ cùng IP thì khoá **10 phút**.
+- Mọi API quản trị là `POST /api/admin/action` với `{ password, action, payload }`; có `POST /api/admin/verify` để đăng nhập. Không lưu mật khẩu trong code.
+- Trên trang chính có nút 🛡️ nhỏ (ẩn trong chế độ OBS) dẫn tới `/admin`.
+
+**Tab "Phiên Live"**
+- Ô dán link live + nút **Kết nối** / **Ngắt kết nối** / **Chạy Demo**.
+- Trạng thái kết nối, số người xem, thời gian live, số quà và tổng donate của phiên.
+- Lịch sử các phiên đã kết nối (kênh, thời gian, tổng donate) và nút kết nối lại nhanh.
+
+**Tab "Quà & Hiệu ứng"**
+- Danh sách quà thật của phòng (ảnh, tên, giá) lấy từ live; chưa kết nối thì dùng danh sách đã lưu.
+- Mỗi quà chọn hiệu ứng từ danh sách thả xuống (hoặc "Theo bảng giá mặc định"); lưu vào `config/gifts.json` hoặc `data/settings.json`.
+- Sửa các mốc giá của bảng mặc định ở mục 6.
+- Nút **"Test"** cạnh từng quà và từng hiệu ứng: chạy thử ngay trên một nhân vật giả ở mọi màn hình đang mở (kể cả OBS).
+
+**Tab "Người xem & Donate"**
+- Danh sách người donate: tìm theo tên, xem tổng donate (phiên / hôm nay / tuần / mọi thời gian), cấp, số lượt.
+- **Cộng / trừ donate (XP) thủ công** cho một người, có ô lý do (ví dụ bù donate bị mất kết nối): nút +10, +100, +1.000 và ô nhập số tuỳ ý. Cấp và Top tự cập nhật; người đó đang trên sàn thì có hiệu ứng lên cấp.
+- **Đặt cấp trực tiếp** cho một người (0–100).
+- **Ẩn / chặn** một người (nhân vật không xuất hiện, chat không hiện bong bóng).
+- Reset Top phiên / ngày / tuần; reset toàn bộ (có hộp xác nhận nhập chữ "XOA").
+
+**Tab "Nhạc"** (chi tiết ở mục 9)
+- Ô dán link YouTube (bài lẻ hoặc playlist) + nút **Thêm vào hàng chờ** / **Phát ngay**.
+- Hàng chờ có ảnh bìa, tên bài, thời lượng, BPM; nút phát ngay, xoá, ▲▼ đổi thứ tự; trộn bài, lặp lại.
+- Bài đang phát: thanh tiến trình tua được, dừng / tiếp tục, bài trước / tiếp, âm lượng chung.
+- Nút **"Bấm theo nhịp"** và ô nhập BPM cho bài đang phát.
+- Chọn vị trí khung trình phát và chọn màn hình nào được phát tiếng.
+
+**Tab "Thông báo & Điều khiển"**
+- Gửi **thông báo chạy chữ** lên mọi màn hình (tối đa 160 ký tự).
+- Chọn góc camera, bật/tắt camera tự chuyển.
+- Bắn pháo hoa / show VIP toàn sàn bằng tay.
+- Xoá sạch sàn (mọi nhân vật đi ra).
+
+**Tab "Cài đặt"**
+- `MAX_AVATARS`, thời gian rời sàn, hệ số cấp độ, bật/tắt từng loại hiệu ứng, âm lượng hiệu ứng phụ, video/ảnh cho màn LED, tên hiển thị của sàn.
+
+**Tab "Nhật ký & Sao lưu"**
+- Nhật ký quà mới nhất (lọc theo phiên / người), **xuất CSV**.
+- **Tải về bản sao lưu** toàn bộ dữ liệu (JSON) và **khôi phục** từ file sao lưu.
+- Nhật ký thao tác admin (ai cộng điểm, đổi cài đặt, lúc nào).
+
+**Chế độ Demo** (bắt buộc, dùng cho test và CI): server giả lập người xem vào (rơi xuống), chat, thả tim, tặng quà ngẫu nhiên đủ các mức giá. Dữ liệu demo **không** cộng vào donate thật.
+
+---
+
+## 11. Giao diện
+
+- Phong cách **nightclub**: nền tối, neon tím–hồng–xanh ngọc, kính mờ, chữ phát sáng.
+- **Màn hình chính**: cảnh 3D toàn màn hình; thanh trên gồm tên kênh, trạng thái, số người xem, số nhân vật; Top donate bên trái; bảng sự kiện (vào live, quà, follow, lên cấp) bên phải; khung "Đang phát" (trình phát YouTube + tên bài) ở góc dưới, người xem chỉ chỉnh được âm lượng của máy mình, không đổi được bài.
+- **Chế độ OBS** `?overlay=1`: ẩn mọi nút, chỉ giữ cảnh, banner quà, Top donate, thông báo và khung "Đang phát". `&transparent=1` nền trong suốt. README hướng dẫn thêm Browser Source vào OBS / TikTok LIVE Studio và bật "Control audio via OBS".
+- Responsive: điện thoại xem được (ẩn bớt bảng, bảng Top thu gọn thành nút).
+
+---
+
+## 12. Đồng bộ giữa các trình duyệt (Socket.IO)
+
+- Khi một trình duyệt vào, server gửi **ảnh chụp trạng thái**: danh sách nhân vật (kèm cấp), Top donate, 30 sự kiện gần nhất, trạng thái kết nối, cài đặt hiển thị, **bài nhạc đang phát và thời điểm bắt đầu** (để vào giữa chừng vẫn nghe đúng đoạn).
+- Server quyết định: tạo/xoá nhân vật, hàng đợi hiệu ứng, Top, cấp độ. Client chỉ hiển thị và tự lo hoạt ảnh, nên mọi màn hình thấy cùng một người nhảy cùng lúc.
+- Vị trí đi lại tính ở client từ `seed` cố định theo `userId` cộng thời gian server, không gửi vị trí liên tục.
+- Gộp like / join mỗi 250 ms thành một gói để không nghẽn khi live đông.
+
+---
+
+## 13. Bảo mật
+
+- Hiển thị nickname, chat, tên quà bằng `textContent`, **không dùng `innerHTML`** với dữ liệu từ TikTok.
+- Lọc từ ngữ thô tục tiếng Việt trong chat hiển thị (che bằng `***`), dùng regex nhận diện ranh giới chữ có dấu (`\p{L}`), không dùng `\b`.
+- Proxy ảnh chỉ cho phép danh sách tên miền ở mục 4 và chỉ trả về ảnh (chống SSRF).
+- API quản trị yêu cầu mật khẩu, giới hạn số lần sai; không trả mật khẩu hay dữ liệu nhạy cảm về client.
+- `helmet` với CSP cho phép: Google Fonts; ảnh qua proxy và ảnh bìa `https://i.ytimg.com`; script `https://www.youtube.com`; khung nhúng (`frame-src`) `https://www.youtube.com` và `https://www.youtube-nocookie.com`. Thêm `compression`, `maxHttpBufferSize` nhỏ, giới hạn kích thước file khôi phục sao lưu.
+- Server chỉ nhận `videoId` / `listId` đúng định dạng, không bao giờ nhận URL tuỳ ý để tải về.
+
+---
+
+## 14. GitHub & triển khai (BẮT BUỘC)
+
+- `.gitignore`: `node_modules/`, `public/dist/`, `.env`, `data/*.json`, `*.log`. **Commit `package-lock.json`.**
+- **GitHub Pages không chạy được server Node.js.** Deploy lên Render, Railway hoặc VPS; **GitHub Actions thực hiện deploy**.
+- `.github/workflows/ci.yml` (mỗi push / PR): `setup-node@v4` (node 20, `cache: npm`) → `npm ci` → `npm run check` → `npm run build` → test khói: chạy server với `DEMO_ONLY=1`, gọi `/health`, rồi tắt.
+- `.github/workflows/deploy.yml` (push `main` + `workflow_dispatch`): job `build` → job `deploy` (`needs: build`, `environment: production`, có `concurrency`):
+  - Render: `curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"`; `render.yaml` đặt `autoDeploy: false`, `ADMIN_PASSWORD` để `sync: false`.
+  - VPS: `appleboy/ssh-action` (secrets `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_PATH`) → `git pull && npm ci && npm run build && npm prune --omit=dev && pm2 reload san-quay-live`.
+  - Xong thì kiểm tra `APP_URL/health`.
+- **Dockerfile** multi-stage (user không phải root), `GET /health` → `{ ok, uptime, live, avatars }`, `trust proxy`, tắt gọn khi nhận `SIGTERM` (lưu dữ liệu trước khi thoát).
+- **Giữ server luôn thức** (Render bản miễn phí ngủ sau 15 phút không ai truy cập): server tự gọi `${RENDER_EXTERNAL_URL}/health` mỗi 10 phút; dùng `KEEP_ALIVE_URL` nếu chạy nơi khác; `KEEP_ALIVE=off` để tắt. README ghi chú bản miễn phí có 750 giờ/tháng cho cả tài khoản.
+- **Lưu dữ liệu lâu dài**: ổ đĩa của Render bản miễn phí bị xoá mỗi lần deploy hoặc khởi động lại, nên **donate và cấp độ sẽ mất**. README hướng dẫn: gắn **Persistent Disk** (gói trả phí) vào `DATA_DIR`, hoặc chạy trên VPS; ngoài ra dùng nút sao lưu / khôi phục trong trang admin trước mỗi lần deploy.
+- **Lưu ý trong README:** TikTok có thể chặn kết nối từ IP của nhà cung cấp cloud. Nếu deploy xong mà không kết nối được live, thêm `TIKTOK_SIGN_API_KEY` hoặc chạy server trên VPS / máy cá nhân.
+
+**Biến môi trường** (`.env.example`; đây cũng là các giá trị cần điền khi công cụ AI hỏi):
+
+| Biến | Giá trị mặc định | Ghi chú |
+|---|---|---|
+| `PORT` | `3000` | |
+| `HOST` | `0.0.0.0` | |
+| `ADMIN_PASSWORD` | *(bắt buộc tự đặt)* | mật khẩu trang `/admin`, không commit |
+| `DATA_DIR` | `./data` | nơi lưu donate, cấp độ, nhật ký |
+| `MAX_AVATARS` | `80` | số nhân vật tối đa trên màn hình |
+| `AVATAR_IDLE_MINUTES` | `10` | im lặng bao lâu thì rời sàn |
+| `LEVEL_FACTOR` | `10` | hệ số công thức cấp độ |
+| `TIKTOK_SIGN_API_KEY` | *(để trống)* | không bắt buộc |
+| `YOUTUBE_API_KEY` | *(để trống)* | không bắt buộc; dùng để lấy danh sách playlist YouTube đầy đủ hơn |
+| `DEMO_ONLY` | `0` | `1` = chỉ chạy giả lập (CI, preview) |
+| `KEEP_ALIVE_URL` / `KEEP_ALIVE` | *(để trống)* | giữ server thức |
+| `CORS_ORIGIN` | `*` khi thử, tên miền thật khi deploy | |
+
+**README tiếng Việt** gồm: chạy local; chế độ Demo; đặt mật khẩu admin; kết nối live từ trang admin; push GitHub (từng lệnh `git`); thêm Secrets; deploy Render và VPS (PM2 + Nginx hỗ trợ WebSocket + Certbot); cài vào OBS / TikTok LIVE Studio; thêm nhạc YouTube và chỉnh BPM; chỉnh bảng quà; sao lưu dữ liệu.
+
+---
+
+## 15. Tiêu chí nghiệm thu
+
+- [ ] Chỉ admin (đúng mật khẩu) mới dán được link live; dán `https://www.tiktok.com/@tenkenh/live`, `@tenkenh` hoặc `tenkenh` đều kết nối được tới kênh đang live.
+- [ ] Sai mật khẩu 8 lần bị khoá 10 phút; chưa đặt `ADMIN_PASSWORD` thì admin bị khoá.
+- [ ] Người xem vào live: nhân vật **rơi từ trên trời xuống**, tiếp đất có hiệu ứng, có tên + ảnh đại diện + huy hiệu cấp, rồi nhảy theo nhạc.
+- [ ] Bình luận hiện bong bóng chat đúng nhân vật; thả tim có tim bay và chữ combo.
+- [ ] Quà nhỏ, vừa, lớn, rất lớn ra **đúng hiệu ứng theo bảng**; quà combo cộng đúng số lượng, không cộng trùng; banner cảm ơn đúng tên và ảnh quà.
+- [ ] Top donate (phiên / ngày / tuần / mọi thời gian) cập nhật đúng; lên Top 1 có thông báo.
+- [ ] Cấp độ tính đúng công thức; lên cấp có hiệu ứng; hiệu ứng nhân vật thay đổi theo bậc cấp; tắt server bật lại vẫn giữ cấp.
+- [ ] Admin cộng/trừ donate, đặt cấp, ẩn người, test từng quà / hiệu ứng, gửi thông báo, xuất CSV, sao lưu / khôi phục đều chạy.
+- [ ] Admin dán link YouTube (bài lẻ, `youtu.be`, shorts, playlist) thêm được vào hàng chờ, có tên bài và ảnh bìa; phát / dừng / bài tiếp / tua / đổi thứ tự / xoá đều chạy.
+- [ ] Mở 2 màn hình: **cùng bài, lệch nhau không quá 2 giây**; vào giữa chừng nghe đúng đoạn đang phát; hết bài tự chuyển; bài không cho nhúng tự bỏ qua.
+- [ ] Bấm theo nhịp ra BPM hợp lý; đèn, màn LED và nhân vật nhún đúng phách bài YouTube; hàng chờ trống thì có nhạc tổng hợp dự phòng.
+- [ ] Mở 2 trình duyệt: thấy giống nhau, đồng bộ.
+- [ ] `?overlay=1&transparent=1` dùng được trong OBS.
+- [ ] Demo chạy được khi không có live và không làm bẩn dữ liệu donate thật.
+- [ ] 80 nhân vật vẫn mượt; vượt giới hạn thì người im lặng lâu nhất rời sàn, người donate và cấp cao được giữ lại.
+- [ ] Mất kết nối live thì tự kết nối lại.
+- [ ] `package-lock.json` có trong repo; `npm ci && npm run build` chạy được với esbuild `^0.27.0`; `ci.yml` xanh; push `main` thì `deploy.yml` deploy và `/health` OK.
+- [ ] Không lỗi console; không có `TODO`; README đầy đủ.
+
+Hãy làm lần lượt: (1) server + kết nối TikTok + Demo + lưu dữ liệu, (2) trang admin (đăng nhập, phiên live, test hiệu ứng), (3) sàn nhảy 3D + camera, (4) nhân vật + rơi xuống + điệu nhảy, (5) bảng quà → hiệu ứng + hàng đợi, (6) tổng hợp donate + Top + cấp độ 0–100, (7) nhạc YouTube: hàng chờ, đồng bộ, tap tempo, nhịp đèn, (8) giao diện + OBS, (9) GitHub Actions + deploy + README. Kiểm tra chạy được sau mỗi bước rồi mới làm bước tiếp theo.
