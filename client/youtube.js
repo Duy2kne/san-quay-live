@@ -1,4 +1,5 @@
 import { startSyntheticEDM, stopSyntheticEDM } from './sfx.js';
+import { setScreenVideoSound, unlockScreenVideoAudio } from './screenVideo.js';
 
 let player = null;
 let isApiReady = false;
@@ -112,15 +113,18 @@ export function syncWithTrack(trackState) {
   currentBeatOffset = trackState.beatOffset || 0;
 
   if (!currentTrack) {
-    // Queue is empty: play procedural synthetic EDM!
+    // Admin chưa phát bài nào: nhạc nền là tiếng của video trên màn LED
     if (player && typeof player.stopVideo === 'function') {
       try { player.stopVideo(); } catch (_) {}
     }
-    startSyntheticEDM(currentBpm);
+    stopSyntheticEDM();
+    setScreenVideoSound(true);
     return;
   }
 
+  // Admin phát bài khác: video màn LED vẫn chạy hình nhưng tắt tiếng
   stopSyntheticEDM();
+  setScreenVideoSound(false);
 
   if (!player || typeof player.loadVideoById !== 'function') return;
 
@@ -191,7 +195,7 @@ function startBeatClock() {
 
   beatInterval = setInterval(() => {
     let playSec = 0;
-    if (player && typeof player.getCurrentTime === 'function' && !isPaused) {
+    if (currentTrack && player && typeof player.getCurrentTime === 'function' && !isPaused) {
       playSec = player.getCurrentTime();
     } else {
       playSec = (Date.now() / 1000);
@@ -228,6 +232,7 @@ export function getCurrentBpm() {
 // (trình duyệt chặn autoplay có tiếng nếu chưa có tương tác).
 export function unlockYouTubeAudio() {
   isAudioMutedByPolicy = false;
+  unlockScreenVideoAudio();
   if (!player) return;
   try {
     if (typeof player.unMute === 'function') player.unMute();
