@@ -3,6 +3,7 @@ import { buildCharacter, lookFor, basePose, applyPose, setExpression, HEAD_Y, NE
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 let scene, camera, renderer, composer, bloomPass;
@@ -109,6 +110,24 @@ export function initScene(container) {
   composer = new EffectComposer(renderer);
   composer.addPass(renderScene);
   composer.addPass(bloomPass);
+  // Vignette nhẹ + tăng bão hoà màu cho hợp không khí neon club
+  composer.addPass(new ShaderPass({
+    uniforms: { tDiffuse: { value: null } },
+    vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `
+      uniform sampler2D tDiffuse;
+      varying vec2 vUv;
+      void main() {
+        vec4 color = texture2D(tDiffuse, vUv);
+        vec2 uv = vUv - 0.5;
+        float vig = 1.0 - dot(uv, uv) * 0.5;
+        color.rgb *= clamp(vig, 0.0, 1.0);
+        float luma = dot(color.rgb, vec3(0.299, 0.587, 0.114));
+        color.rgb = mix(vec3(luma), color.rgb, 1.12);
+        gl_FragColor = color;
+      }
+    `,
+  }));
 
   buildNightclubStructure();
   buildLighting();
