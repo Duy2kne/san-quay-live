@@ -25,10 +25,69 @@ const HEAD_R = 0.34;
 const SKINS = [0xf6d5c0, 0xf1c7a8, 0xe8b893, 0xfadfcf];
 
 // ---------- Vật liệu dùng chung ----------
-const bodyMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0.02 });
-const glitterMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.28, metalness: 0.55, emissive: 0x2a1040, emissiveIntensity: 0.35 });
-const skirtMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, side: THREE.DoubleSide });
-const glitterSkirtMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.28, metalness: 0.55, emissive: 0x2a1040, emissiveIntensity: 0.35, side: THREE.DoubleSide });
+// Gradient 4 nấc sáng-tối để tô bóng kiểu hoạt hình (toon) thay vì PBR mượt phẳng
+function makeToonGradient() {
+  const c = document.createElement('canvas');
+  c.width = 4;
+  c.height = 1;
+  const ctx = c.getContext('2d');
+  [70, 150, 210, 255].forEach((v, i) => {
+    ctx.fillStyle = `rgb(${v},${v},${v})`;
+    ctx.fillRect(i, 0, 1, 1);
+  });
+  const tex = new THREE.CanvasTexture(c);
+  tex.minFilter = THREE.NearestFilter;
+  tex.magFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  return tex;
+}
+const toonGradient = makeToonGradient();
+
+const bodyMaterial = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient });
+const glitterMaterial = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient, emissive: 0x2a1040, emissiveIntensity: 0.35 });
+const skirtMaterial = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient, side: THREE.DoubleSide });
+const glitterSkirtMaterial = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient, emissive: 0x2a1040, emissiveIntensity: 0.35, side: THREE.DoubleSide });
+
+// Viền đen kiểu "inverted hull": nhân đôi mesh, phóng to nhẹ, chỉ vẽ mặt sau -> viền quanh bóng
+const outlineMaterial = new THREE.MeshBasicMaterial({ color: 0x0b0710, side: THREE.BackSide });
+function addOutline(parent, geometry, scale = 1.035) {
+  const m = new THREE.Mesh(geometry, outlineMaterial);
+  m.scale.setScalar(scale);
+  parent.add(m);
+  return m;
+}
+
+// Viền sáng neon ngược sáng (fresnel rim light) bám theo accent màu của từng người, nổi trên nền tối club
+const rimVertexShader = `
+  varying vec3 vNormalW;
+  varying vec3 vViewDirW;
+  void main() {
+    vec4 worldPos = modelMatrix * vec4(position, 1.0);
+    vNormalW = normalize(mat3(modelMatrix) * normal);
+    vViewDirW = normalize(cameraPosition - worldPos.xyz);
+    gl_Position = projectionMatrix * viewMatrix * worldPos;
+  }
+`;
+const rimFragmentShader = `
+  uniform vec3 color;
+  uniform float intensity;
+  varying vec3 vNormalW;
+  varying vec3 vViewDirW;
+  void main() {
+    float fresnel = pow(1.0 - max(dot(normalize(vNormalW), normalize(vViewDirW)), 0.0), 2.6);
+    gl_FragColor = vec4(color, fresnel * intensity);
+  }
+`;
+function makeRimMaterial(hex) {
+  return new THREE.ShaderMaterial({
+    uniforms: { color: { value: new THREE.Color(hex) }, intensity: { value: 0.85 } },
+    vertexShader: rimVertexShader,
+    fragmentShader: rimFragmentShader,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+}
 
 // ---------- Tiện ích hình học ----------
 function paint(g, hex) {
@@ -312,7 +371,7 @@ export function faceMaterial(gender, expr = 'happy') {
   for (const sx of [-1, 1]) {
     const gx = 128 + sx * 66;
     const grd = ctx.createRadialGradient(gx, 132, 2, gx, 132, 26);
-    grd.addColorStop(0, female ? 'rgba(242,128,150,0.55)' : 'rgba(236,140,140,0.35)');
+    grd.addColorStop(0, female ? 'rgba(242,110,140,0.65)' : 'rgba(236,130,130,0.45)');
     grd.addColorStop(1, 'rgba(242,128,150,0)');
     ctx.fillStyle = grd;
     ctx.fillRect(gx - 30, 104, 60, 56);
@@ -347,11 +406,16 @@ export function faceMaterial(gender, expr = 'happy') {
       ctx.fill();
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
-      ctx.arc(cx - sx * 4 - 3, eyeY - 7, 5, 0, Math.PI * 2);
+      ctx.arc(cx - sx * 4 - 3, eyeY - 8, 6, 0, Math.PI * 2);
       ctx.fill();
       ctx.beginPath();
-      ctx.arc(cx + 4, eyeY + 8, 2.4, 0, Math.PI * 2);
+      ctx.arc(cx + 4, eyeY + 8, 2.8, 0, Math.PI * 2);
       ctx.fill();
+      ctx.globalAlpha = 0.85;
+      ctx.beginPath();
+      ctx.arc(cx + sx * 6, eyeY - 2, 2.1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
       ctx.strokeStyle = '#1d120d';
       ctx.lineWidth = female ? 5 : 4;
       ctx.beginPath();
@@ -677,7 +741,7 @@ function buildParts(look) {
  */
 export function buildCharacter(look) {
   const P = buildParts(look);
-  const [top, bottom] = look.palette;
+  const [top, bottom, accent] = look.palette;
   const mat = look.glitter ? glitterMaterial : bodyMaterial;
 
   const rig = { look, root: new THREE.Group() };
@@ -685,15 +749,20 @@ export function buildCharacter(look) {
   bodyMesh.castShadow = true;
   rig.root.add(bodyMesh);
   rig.bodyMesh = bodyMesh;
+  addOutline(rig.root, P.body, 1.035);
+  rig.root.add(new THREE.Mesh(P.body, makeRimMaterial(accent)));
 
   if (P.skirt) {
     rig.skirtMesh = new THREE.Mesh(P.skirt, look.glitter ? glitterSkirtMaterial : skirtMaterial);
     rig.root.add(rig.skirtMesh);
+    addOutline(rig.root, P.skirt, 1.04);
   }
 
   rig.head = new THREE.Group();
   rig.head.position.y = NECK_Y;
   rig.head.add(new THREE.Mesh(P.head, bodyMaterial));
+  addOutline(rig.head, P.head, 1.045);
+  rig.head.add(new THREE.Mesh(P.head, makeRimMaterial(accent)));
   rig.face = new THREE.Mesh(faceGeometry, faceMaterial(look.gender, 'happy'));
   rig.face.renderOrder = 1;
   rig.head.add(rig.face);
