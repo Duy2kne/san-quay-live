@@ -7,6 +7,7 @@ import compression from 'compression';
 import cors from 'cors';
 import helmet from 'helmet';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
@@ -49,6 +50,8 @@ app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(
   helmet({
     frameguard: false,
+    // YouTube nhúng cần biết trang nhúng (referrer), nếu không sẽ báo "Error 153 - Video player configuration error"
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
     crossOriginEmbedderPolicy: false,
     crossOriginResourcePolicy: false,
     crossOriginOpenerPolicy: false,
@@ -220,6 +223,19 @@ app.get('/api/snapshot', (req, res) => {
 });
 
 // Top donors page endpoint
+// Danh sách ảnh poster trong public/images (bỏ ảnh mới vào thư mục này là tự hiện trên tường)
+app.get('/api/posters', (req, res) => {
+  try {
+    const dir = path.join(__dirname, 'public', 'images');
+    const files = fs.existsSync(dir)
+      ? fs.readdirSync(dir).filter(f => /\.(png|jpe?g|webp)$/i.test(f)).sort()
+      : [];
+    res.json({ posters: files.map(f => `/images/${encodeURIComponent(f)}`) });
+  } catch (_) {
+    res.json({ posters: [] });
+  }
+});
+
 app.get('/api/top', (req, res) => {
   const scope = req.query.scope || 'all';
   const search = req.query.search || '';
