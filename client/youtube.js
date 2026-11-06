@@ -54,6 +54,7 @@ function createPlayer(containerId) {
       playerVars: {
         autoplay: 1,
         mute: 1, // trình duyệt luôn cho autoplay khi muted; bỏ mute sau khi người dùng bấm nút bật âm thanh
+        playsinline: 1, // bắt buộc để điện thoại (nhất là iOS Safari) tự phát video trong khung thay vì chặn/mở fullscreen
         controls: 1,
         disablekb: 0,
         enablejsapi: 1,
