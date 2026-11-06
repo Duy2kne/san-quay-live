@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { initScreenVideo, renderScreenVideo } from './screenVideo.js';
 import { buildCharacter, lookFor, basePose, applyPose, setExpression, HEAD_Y, NECK_Y } from './character.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -8,6 +9,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 let scene, camera, renderer, composer, bloomPass;
 let discoBall, ledScreenCanvas, ledScreenTexture, ledScreenMesh;
+let sceneContainer = null;
 let topTotemCanvas1, topTotemTex1, topTotemMesh1;
 let topTotemCanvas2, topTotemTex2, topTotemMesh2;
 let djBoothLedCanvas, djBoothLedTex;
@@ -39,6 +41,10 @@ export const CAMERA_PRESETS = [
   { name: 'Lồng vũ công', pos: [12, 9, -2], lookAt: [11, 7, -6] },
   { name: 'Góc DJ nhìn xuống', pos: [0, 6.2, -12.5], lookAt: [0, 1.2, 6] },
   { name: 'Cận cảnh khán giả', pos: [0, 3.4, 17], lookAt: [0, 1.6, 6] },
+  { name: 'Màn hình LED', pos: [0, 6.8, 2], lookAt: [0, 7.6, -18.5] },
+  { name: 'Màn hình & DJ', pos: [-7, 5.2, -3], lookAt: [0, 6.5, -18] },
+  { name: 'Tường poster trái', pos: [-12, 5.5, 9], lookAt: [-29, 6.2, -3] },
+  { name: 'Tường poster phải', pos: [12, 5.5, 9], lookAt: [29, 6.2, -3] },
 ];
 
 let currentCameraIndex = 0;
@@ -87,16 +93,19 @@ export function initScene(container) {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.0;
+  renderer.toneMappingExposure = 1.12;
   renderer.shadowMap.enabled = !isSoftwareGl;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   container.appendChild(renderer.domElement);
+  Object.assign(renderer.domElement.style, { position: 'absolute', top: '0', left: '0', zIndex: '1' });
+  sceneContainer = container;
+  if (/[?&]debug=1/.test(location.search)) window.__sq = { get scene() { return scene; }, get bloomPass() { return bloomPass; }, get composer() { return composer; }, renderer };
 
   const pmremGenerator = new THREE.PMREMGenerator(renderer);
   scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
   // Ánh sáng môi trường chỉ để kim loại / quả cầu disco có phản chiếu; để cao sẽ làm nhân vật sáng loá trắng
-  scene.environmentIntensity = 0.22;
+  scene.environmentIntensity = 0.35;
   pmremGenerator.dispose();
 
   const renderScene = new RenderPass(scene, camera);
@@ -167,10 +176,10 @@ function buildNightclubStructure() {
       const isAlt = (Math.abs(x) + Math.abs(z)) % 2 === 0;
       const tileMat = new THREE.MeshStandardMaterial({
         color: isAlt ? 0x180b33 : 0x090518,
-        emissive: isAlt ? 0x6b21a8 : 0x0f172a,
-        emissiveIntensity: 0.35,
-        roughness: 0.1,
-        metalness: 0.8,
+        emissive: isAlt ? 0x7c3aed : 0x1e3a8a,
+        emissiveIntensity: 0.55,
+        roughness: 0.3,
+        metalness: 0.35,
       });
       const tileMesh = new THREE.Mesh(tileGeo, tileMat);
       tileMesh.position.set((x + 0.5) * tileSize, 0, (z + 0.5) * tileSize);
@@ -220,6 +229,161 @@ function buildNightclubStructure() {
 
   // Vỏ câu lạc bộ: vách kính nhìn ra thành phố, tường neon, giàn đèn trần, viền sàn nhảy
   buildClubShell();
+
+  // Poster treo quanh tường (ảnh trong public/images)
+  buildPosters();
+}
+
+// ===== Poster: khung đèn neon, ảnh phát sáng như hộp đèn quảng cáo =====
+// Vị trí: 2 bên tường (giữa các cột neon) + tường sau sân khấu. Ảnh nằm trọn trong khung, không bị méo.
+const POSTER_SLOTS = [
+  // [x, y, z, xoay Y]
+  [-29.1, 6.6, -14.75, Math.PI / 2],
+  [-29.1, 6.6, -1.75, Math.PI / 2],
+  [-29.1, 6.6, 11.25, Math.PI / 2],
+  [29.1, 6.6, -14.75, -Math.PI / 2],
+  [29.1, 6.6, -1.75, -Math.PI / 2],
+  [29.1, 6.6, 11.25, -Math.PI / 2],
+  [-21, 7.2, -23.5, 0],
+  [21, 7.2, -23.5, 0],
+];
+const POSTER_NEON = [0xff2fb3, 0x22d3ee, 0xfacc15, 0xa855f7];
+
+// Xoá nền ảnh poster (nền trắng / xám / ô caro giả trong suốt) bằng loang màu từ mép ảnh,
+// rồi đặt nhân vật lên nền neon tối cho hợp sàn nhảy.
+function posterCanvas(img, neonHex) {
+  const scale = Math.min(1, 1024 / Math.max(img.width, img.height));
+  const W = Math.round(img.width * scale);
+  const H = Math.round(img.height * scale);
+  const src = document.createElement('canvas');
+  src.width = W;
+  src.height = H;
+  const sctx = src.getContext('2d', { willReadFrequently: true });
+  sctx.drawImage(img, 0, 0, W, H);
+  const data = sctx.getImageData(0, 0, W, H);
+  const d = data.data;
+
+  // Bảng màu nền: các màu ít bão hoà lấy dọc 4 mép ảnh
+  const palette = [];
+  const addColor = (i) => {
+    const r = d[i], g = d[i + 1], b = d[i + 2];
+    if (Math.max(r, g, b) - Math.min(r, g, b) > 16) return;
+    if (!palette.some((c) => Math.abs(c[0] - r) + Math.abs(c[1] - g) + Math.abs(c[2] - b) < 18)) palette.push([r, g, b]);
+  };
+  for (let x = 0; x < W; x += 3) { addColor(x * 4); addColor(((H - 1) * W + x) * 4); }
+  for (let y = 0; y < H; y += 3) { addColor(y * W * 4); addColor((y * W + W - 1) * 4); }
+  if (!palette.length || palette.length > 40) return null; // mép ảnh nhiều màu: coi như ảnh có nền riêng, giữ nguyên
+
+  const isBg = (p) => {
+    const i = p * 4;
+    const r = d[i], g = d[i + 1], b = d[i + 2];
+    if (Math.max(r, g, b) - Math.min(r, g, b) > 20) return false;
+    for (const c of palette) if (Math.abs(c[0] - r) + Math.abs(c[1] - g) + Math.abs(c[2] - b) < 30) return true;
+    return false;
+  };
+  const seen = new Uint8Array(W * H);
+  const stack = [];
+  for (let x = 0; x < W; x++) { stack.push(x, (H - 1) * W + x); }
+  for (let y = 0; y < H; y++) { stack.push(y * W, y * W + W - 1); }
+  while (stack.length) {
+    const p = stack.pop();
+    if (seen[p] || !isBg(p)) continue;
+    seen[p] = 1;
+    d[p * 4 + 3] = 0;
+    const x = p % W;
+    if (x > 0) stack.push(p - 1);
+    if (x < W - 1) stack.push(p + 1);
+    if (p >= W) stack.push(p - W);
+    if (p < W * (H - 1)) stack.push(p + W);
+  }
+  // làm mềm viền: pixel sát nền giảm độ đục một nửa
+  for (let p = W; p < W * (H - 1); p++) {
+    if (seen[p]) continue;
+    if (seen[p - 1] || seen[p + 1] || seen[p - W] || seen[p + W]) d[p * 4 + 3] = 150;
+  }
+  sctx.putImageData(data, 0, 0);
+
+  // Nền neon tối + quầng sáng màu khung phía sau nhân vật
+  const out = document.createElement('canvas');
+  out.width = W;
+  out.height = H;
+  const o = out.getContext('2d');
+  const neon = '#' + neonHex.toString(16).padStart(6, '0');
+  const bg = o.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#1a0b3d');
+  bg.addColorStop(0.55, '#0b0620');
+  bg.addColorStop(1, '#14062a');
+  o.fillStyle = bg;
+  o.fillRect(0, 0, W, H);
+  const glow = o.createRadialGradient(W / 2, H * 0.45, 0, W / 2, H * 0.45, Math.max(W, H) * 0.6);
+  glow.addColorStop(0, neon + '55');
+  glow.addColorStop(1, neon + '00');
+  o.fillStyle = glow;
+  o.fillRect(0, 0, W, H);
+  o.drawImage(src, 0, 0);
+  return out;
+}
+
+async function buildPosters() {
+  let list = [];
+  try {
+    const r = await fetch('/api/posters');
+    list = (await r.json()).posters || [];
+  } catch (_) {}
+  if (!list.length) return;
+  const loader = new THREE.TextureLoader();
+  const maxAniso = renderer ? renderer.capabilities.getMaxAnisotropy() : 4;
+  POSTER_SLOTS.forEach((slot, i) => {
+    const url = list[i % list.length];
+    loader.load(url, (loaded) => {
+      const neonHex = POSTER_NEON[i % POSTER_NEON.length];
+      let tex = loaded;
+      try {
+        const c = posterCanvas(loaded.image, neonHex);
+        if (c) {
+          tex = new THREE.CanvasTexture(c);
+          loaded.dispose();
+        }
+      } catch (_) {}
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = Math.min(8, maxAniso);
+      const aspect = tex.image.width / tex.image.height;
+      // vừa khung tối đa 5.2 (rộng) x 8 (cao)
+      let h = 8;
+      let w = h * aspect;
+      if (w > 5.2) {
+        w = 5.2;
+        h = w / aspect;
+      }
+      const g = new THREE.Group();
+      const neon = POSTER_NEON[i % POSTER_NEON.length];
+      // tấm nền đen + viền neon
+      const back = new THREE.Mesh(new THREE.BoxGeometry(w + 0.5, h + 0.5, 0.12), new THREE.MeshStandardMaterial({ color: 0x07040f, roughness: 0.5, metalness: 0.4 }));
+      back.position.z = -0.08;
+      g.add(back);
+      const edgeMat = new THREE.MeshBasicMaterial({ color: neon });
+      for (const [ew, eh, ex, ey] of [[w + 0.36, 0.08, 0, h / 2 + 0.14], [w + 0.36, 0.08, 0, -h / 2 - 0.14], [0.08, h + 0.36, -w / 2 - 0.14, 0], [0.08, h + 0.36, w / 2 + 0.14, 0]]) {
+        const e = new THREE.Mesh(new THREE.BoxGeometry(ew, eh, 0.06), edgeMat);
+        e.position.set(ex, ey, 0.02);
+        g.add(e);
+        wallNeons.push(e);
+      }
+      // ảnh: tự phát sáng nhẹ (hộp đèn), giữ màu gốc, không loá trắng
+      const img = new THREE.Mesh(
+        new THREE.PlaneGeometry(w, h),
+        new THREE.MeshBasicMaterial({ map: tex, color: 0xe6e6e6, toneMapped: false })
+      );
+      img.position.z = 0.01;
+      g.add(img);
+      // quầng sáng màu neon hắt lên tường
+      const glow = new THREE.PointLight(neon, 6, 7, 2);
+      glow.position.set(0, 0, 1.2);
+      g.add(glow);
+      g.position.set(slot[0], slot[1], slot[2]);
+      g.rotation.y = slot[3];
+      scene.add(g);
+    });
+  });
 }
 
 // Cửa sổ thành phố sáng đèn (texture dùng chung)
@@ -447,6 +611,33 @@ function buildDjBoothAndDjCharacter() {
   ledScreenMesh.position.set(0, 8.2, -4.5);
   stageGroup.add(ledScreenMesh);
 
+  // Viền màn hình đặc (che phần rìa video thừa ra ngoài) + dải neon quanh màn
+  const bezel = new THREE.Mesh(new THREE.BoxGeometry(23, 13.2, 0.4), new THREE.MeshStandardMaterial({ color: 0x07040f, metalness: 0.6, roughness: 0.4 }));
+  bezel.position.set(0, 8.2, -4.85);
+  stageGroup.add(bezel);
+  const neonEdgeMat = new THREE.MeshBasicMaterial({ color: 0xec4899 });
+  for (const [w, h, x, y] of [[20.6, 0.14, 0, 13.25], [20.6, 0.14, 0, 3.15], [0.14, 10.2, -10.25, 8.2], [0.14, 10.2, 10.25, 8.2]]) {
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.08), neonEdgeMat);
+    edge.position.set(x, y, -4.45);
+    stageGroup.add(edge);
+  }
+  // "Đục lỗ" trong suốt để lộ video YouTube ở lớp phía sau canvas
+  const HOLE_W = 19.4;
+  const HOLE_H = 9.6;
+  const holeMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, blending: THREE.NoBlending, fog: false, toneMapped: false });
+  const hole = new THREE.Mesh(new THREE.PlaneGeometry(HOLE_W, HOLE_H), holeMat);
+  hole.position.set(0, 8.2, -4.48);
+  hole.renderOrder = -1;
+  hole.name = 'screenHole';
+  stageGroup.add(hole);
+  if (sceneContainer) {
+    initScreenVideo(sceneContainer, {
+      center: new THREE.Vector3(0, 8.2, stageGroup.position.z - 4.49),
+      width: HOLE_W,
+      height: HOLE_H,
+    });
+  }
+
   // Giant Speakers left & right
   const spkGeo = new THREE.BoxGeometry(2.4, 7, 2.4);
   const spkMat = new THREE.MeshStandardMaterial({ color: 0x0a0515, roughness: 0.4, metalness: 0.6 });
@@ -583,7 +774,7 @@ function buildTopTotems() {
   topTotemTex1 = new THREE.CanvasTexture(topTotemCanvas1);
   topTotemTex1.colorSpace = THREE.SRGBColorSpace;
   topTotemMesh1 = new THREE.Mesh(totemGeo, new THREE.MeshBasicMaterial({ map: topTotemTex1 }));
-  topTotemMesh1.position.set(-6.8, 6.5, -17.5);
+  topTotemMesh1.position.set(-14.6, 7.2, -17.2); // bên trái màn LED, không che video
   scene.add(topTotemMesh1);
 
   // Top 2 Right Totem
@@ -595,7 +786,7 @@ function buildTopTotems() {
   topTotemTex2 = new THREE.CanvasTexture(topTotemCanvas2);
   topTotemTex2.colorSpace = THREE.SRGBColorSpace;
   topTotemMesh2 = new THREE.Mesh(totemGeo, new THREE.MeshBasicMaterial({ map: topTotemTex2 }));
-  topTotemMesh2.position.set(6.8, 6.5, -17.5);
+  topTotemMesh2.position.set(14.6, 7.2, -17.2);
   scene.add(topTotemMesh2);
 }
 
@@ -784,25 +975,44 @@ export function syncCrowdBatch(totalCount) {
 }
 
 // CO2 Smoke Canons
+// Khói CO2: các tia khói mờ (sprite mềm) phun thẳng lên trước sân khấu, tan nhanh, không che màn hình
+let _smokeTex = null;
+function smokeTexture() {
+  if (_smokeTex) return _smokeTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,255,255,0.9)');
+  gr.addColorStop(0.45, 'rgba(235,240,255,0.35)');
+  gr.addColorStop(1, 'rgba(235,240,255,0)');
+  g.fillStyle = gr;
+  g.fillRect(0, 0, 64, 64);
+  _smokeTex = new THREE.CanvasTexture(c);
+  return _smokeTex;
+}
+
 export function triggerCo2Cannons(durationMs = 2500) {
   co2Active = true;
   const nozzleX = [-4.5, -1.5, 1.5, 4.5];
+  const tex = smokeTexture();
 
   nozzleX.forEach(nx => {
-    for (let p = 0; p < 35; p++) {
-      const smokeGeo = new THREE.SphereGeometry(0.35 + Math.random() * 0.4, 8, 8);
-      const smokeMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 });
-      const smoke = new THREE.Mesh(smokeGeo, smokeMat);
-      smoke.position.set(nx + (Math.random() - 0.5) * 0.4, 2.2, -9.8 + (Math.random() - 0.5) * 0.4);
+    for (let p = 0; p < 14; p++) {
+      const mat = new THREE.SpriteMaterial({ map: tex, color: 0xe8eeff, transparent: true, opacity: 0.5, depthWrite: false });
+      const smoke = new THREE.Sprite(mat);
+      const s0 = 0.5 + Math.random() * 0.4;
+      smoke.scale.set(s0, s0, 1);
+      smoke.position.set(nx + (Math.random() - 0.5) * 0.3, 2.0, -9.6 + (Math.random() - 0.5) * 0.3);
       scene.add(smoke);
 
       co2Particles.push({
         mesh: smoke,
-        vy: 8 + Math.random() * 6,
-        vx: (Math.random() - 0.5) * 1.5,
-        vz: (Math.random() - 0.5) * 1.5,
-        life: 0,
-        maxLife: 1.8 + Math.random() * 0.8,
+        vy: 5 + Math.random() * 3,
+        vx: (Math.random() - 0.5) * 0.6,
+        vz: 0.4 + Math.random() * 0.8, // hơi phả về phía khán giả, ra trước màn hình
+        life: -p * 0.04, // phun liên tục thành tia
+        maxLife: 0.9 + Math.random() * 0.4,
       });
     }
   });
@@ -987,10 +1197,19 @@ function buildCityBackdrop() {
 }
 
 function buildLighting() {
-  const ambient = new THREE.AmbientLight(0x2a1650, 0.7);
+  const ambient = new THREE.AmbientLight(0x4a3a78, 1.0);
   scene.add(ambient);
 
-  const hemiLight = new THREE.HemisphereLight(0x8b5cf6, 0x0b0420, 0.55);
+  const hemiLight = new THREE.HemisphereLight(0xc4b5fd, 0x1a0d33, 0.9);
+  // Đèn chiếu mặt từ phía khán đài: nhân vật có màu tươi, mặt sáng rõ (không thành bóng đen)
+  const faceLight = new THREE.DirectionalLight(0xfff1f7, 1.25);
+  faceLight.position.set(4, 14, 26);
+  faceLight.target.position.set(0, 0, -2);
+  scene.add(faceLight);
+  scene.add(faceLight.target);
+  const rimLight = new THREE.DirectionalLight(0x9b8cff, 0.6);
+  rimLight.position.set(-10, 10, -20);
+  scene.add(rimLight);
   scene.add(hemiLight);
 
   const spotColors = [0xec4899, 0x3b82f6, 0x10b981, 0xf59e0b];
@@ -1002,7 +1221,7 @@ function buildLighting() {
   ];
 
   spotPositions.forEach((pos, idx) => {
-    const spot = new THREE.SpotLight(spotColors[idx % spotColors.length], 14, 45, Math.PI / 6, 0.45, 1.2);
+    const spot = new THREE.SpotLight(spotColors[idx % spotColors.length], 26, 45, Math.PI / 6, 0.45, 1.2);
     spot.position.set(...pos);
     spot.castShadow = !isSoftwareGl;
     spot.shadow.mapSize.width = 512;
@@ -1049,15 +1268,25 @@ export function setCameraAutoSwitch(enabled) {
 // bỏ qua góc sân khấu & DJ để không bị cắt cảnh vào DJ.
 const AUTO_CAMERA_INDICES = CAMERA_PRESETS.map((_, i) => i).filter((i) => i !== 1 && i !== 7);
 
+// Tự chuyển góc máy: cứ 2 góc thường thì lia tới màn hình LED 1 lần (xen kẽ 2 góc nhìn màn hình)
+const SCREEN_CAMERA_INDICES = CAMERA_PRESETS.map((p, i) => (/Màn hình/.test(p.name) ? i : -1)).filter((i) => i >= 0);
+let autoSwitchCount = 0;
+let screenShotTurn = 0;
 function startCameraAutoSwitch() {
   setInterval(() => {
-    if (cameraAutoSwitch && !droneCamActive) {
-      const pos = AUTO_CAMERA_INDICES.indexOf(currentCameraIndex);
-      const next = AUTO_CAMERA_INDICES[(pos + 1) % AUTO_CAMERA_INDICES.length];
-      currentCameraIndex = next;
-      switchCameraPreset(currentCameraIndex, false);
+    if (!cameraAutoSwitch || droneCamActive) return;
+    autoSwitchCount++;
+    let next;
+    if (autoSwitchCount % 3 === 0 && SCREEN_CAMERA_INDICES.length) {
+      next = SCREEN_CAMERA_INDICES[screenShotTurn++ % SCREEN_CAMERA_INDICES.length];
+    } else {
+      const normal = AUTO_CAMERA_INDICES.filter((i) => !SCREEN_CAMERA_INDICES.includes(i));
+      const pos = normal.indexOf(currentCameraIndex);
+      next = normal[(pos + 1) % normal.length];
     }
-  }, 25000);
+    currentCameraIndex = next;
+    switchCameraPreset(currentCameraIndex, false);
+  }, 20000);
 }
 
 export function triggerDroneCamera(targetPosition, durationMs = 6000) {
@@ -1108,13 +1337,16 @@ export function onBeatTick({ beatNum, phrase32 }) {
 
   // Change floor tiles hue
   const hue = (beatNum * 0.05) % 1;
-  const tileColor = new THREE.Color().setHSL(hue, 0.9, 0.3);
+  // Sàn LED: ô sáng màu chính, ô còn lại màu bổ sung dịu (không còn ô đen kịt)
+  const tileColor = new THREE.Color().setHSL(hue, 0.95, 0.5);
+  const baseColor = new THREE.Color().setHSL((hue + 0.5) % 1, 0.8, 0.32);
   floorTiles.forEach((tile, i) => {
     if ((i + beatNum) % 3 === 0) {
       tile.material.emissive.copy(tileColor);
-      tile.material.emissiveIntensity = 0.8;
+      tile.material.emissiveIntensity = 0.85;
     } else {
-      tile.material.emissiveIntensity = 0.2;
+      tile.material.emissive.copy(baseColor);
+      tile.material.emissiveIntensity = 0.4;
     }
   });
 
@@ -1178,6 +1410,7 @@ export function renderSceneLoop(delta, timeSec) {
   // Render composer
   if (composer) {
     composer.render();
+    renderScreenVideo(camera);
   } else if (renderer) {
     renderer.render(scene, camera);
   }
@@ -1286,15 +1519,19 @@ function animateCo2Smoke(delta) {
   for (let i = co2Particles.length - 1; i >= 0; i--) {
     const p = co2Particles[i];
     p.life += delta;
+    if (p.life < 0) { p.mesh.visible = false; continue; }
+    p.mesh.visible = true;
     p.mesh.position.y += p.vy * delta;
     p.mesh.position.x += p.vx * delta;
     p.mesh.position.z += p.vz * delta;
-    p.mesh.scale.multiplyScalar(1 + delta * 2.5);
-    p.mesh.material.opacity = Math.max(0, 0.85 * (1 - p.life / p.maxLife));
+    p.vy *= 1 - delta * 1.5;
+    const grow = 1 + delta * 1.8;
+    p.mesh.scale.set(p.mesh.scale.x * grow, p.mesh.scale.y * grow, 1);
+    p.mesh.material.opacity = Math.max(0, 0.5 * (1 - p.life / p.maxLife));
 
     if (p.life >= p.maxLife) {
       scene.remove(p.mesh);
-      if (p.mesh.geometry) p.mesh.geometry.dispose();
+      p.mesh.material.dispose();
       co2Particles.splice(i, 1);
     }
   }
