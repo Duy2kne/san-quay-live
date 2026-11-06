@@ -19,7 +19,7 @@ let socket = null;
 function setNowPlaying(music) {
   const el = document.getElementById('np-title');
   if (!el) return;
-  el.textContent = music?.currentTrack?.title || 'Nhạc sàn tự động';
+  el.textContent = music?.currentTrack?.title || '🎬 Nhạc video màn hình';
 }
 
 export function initNetwork({ avatarManager, scene }) {
