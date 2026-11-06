@@ -48,11 +48,26 @@ const glitterMaterial = new THREE.MeshToonMaterial({ vertexColors: true, gradien
 const skirtMaterial = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient, side: THREE.DoubleSide });
 const glitterSkirtMaterial = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient, emissive: 0x2a1040, emissiveIntensity: 0.35, side: THREE.DoubleSide });
 
-// Viền đen kiểu "inverted hull": nhân đôi mesh, phóng to nhẹ, chỉ vẽ mặt sau -> viền quanh bóng
-const outlineMaterial = new THREE.MeshBasicMaterial({ color: 0x0b0710, side: THREE.BackSide });
-function addOutline(parent, geometry, scale = 1.035) {
-  const m = new THREE.Mesh(geometry, outlineMaterial);
-  m.scale.setScalar(scale);
+// Viền đen: đẩy từng đỉnh ra ngoài theo đúng pháp tuyến 1 khoảng cố định (không phụ thuộc gốc toạ độ
+// như scale thô -> không bị méo), chỉ vẽ mặt sau nên chỉ lộ ra đúng viền rìa bóng.
+const outlineVertexShader = `
+  uniform float thickness;
+  void main() {
+    vec3 displaced = position + normalize(normal) * thickness;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
+  }
+`;
+const outlineFragmentShader = `
+  void main() { gl_FragColor = vec4(0.043, 0.031, 0.063, 1.0); }
+`;
+function addOutline(parent, geometry, thickness = 0.014) {
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { thickness: { value: thickness } },
+    vertexShader: outlineVertexShader,
+    fragmentShader: outlineFragmentShader,
+    side: THREE.BackSide,
+  });
+  const m = new THREE.Mesh(geometry, mat);
   parent.add(m);
   return m;
 }
@@ -749,19 +764,19 @@ export function buildCharacter(look) {
   bodyMesh.castShadow = true;
   rig.root.add(bodyMesh);
   rig.bodyMesh = bodyMesh;
-  addOutline(rig.root, P.body, 1.035);
+  addOutline(rig.root, P.body, 0.014);
   rig.root.add(new THREE.Mesh(P.body, makeRimMaterial(accent)));
 
   if (P.skirt) {
     rig.skirtMesh = new THREE.Mesh(P.skirt, look.glitter ? glitterSkirtMaterial : skirtMaterial);
     rig.root.add(rig.skirtMesh);
-    addOutline(rig.root, P.skirt, 1.04);
+    addOutline(rig.root, P.skirt, 0.016);
   }
 
   rig.head = new THREE.Group();
   rig.head.position.y = NECK_Y;
   rig.head.add(new THREE.Mesh(P.head, bodyMaterial));
-  addOutline(rig.head, P.head, 1.045);
+  addOutline(rig.head, P.head, 0.01);
   rig.head.add(new THREE.Mesh(P.head, makeRimMaterial(accent)));
   rig.face = new THREE.Mesh(faceGeometry, faceMaterial(look.gender, 'happy'));
   rig.face.renderOrder = 1;
